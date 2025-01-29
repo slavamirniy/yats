@@ -18,7 +18,6 @@ export interface IQueueStorage {
 
 export class QueueProtocol<T extends Record<string, any>> extends IProtocolActivitiesProvider<T> {
 
-    InferActivities: T = {} as any;
     private isRunning: boolean = false;
 
     constructor(

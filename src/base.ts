@@ -836,20 +836,21 @@ class MiddlewareEventCollector<
     static from<A extends Record<string, any>, W extends Record<string, any>>(
         event: MiddlewareInput<A, W>
     ): MiddlewareEventCollector<MiddlewareInput<A, W>, A, W> {
-        return new MiddlewareEventCollector(event) as any;
+        return new MiddlewareEventCollector(event);
     }
 
     private clone<NewEvent extends Event, NewFlags extends Flags>(
         newEvent: NewEvent,
         newFlags: NewFlags
     ): Omit<MiddlewareEventCollector<NewEvent, Activities, Workflows, NewFlags, AllowUndefined>, ExcludedMethods<NewFlags>> {
-        const collector = new MiddlewareEventCollector(newEvent);
+        const collector = new MiddlewareEventCollector(newEvent as any);
         return collector as any;
     }
 
     filter<NewEvent extends Event>(fn: (event: Event) => event is NewEvent): MiddlewareEventCollector<NewEvent, Activities, Workflows, Flags, AllowUndefined> {
-        return this.condition(fn(this.event), this.event, this.flags);
+        return this.condition(fn(this.event), {} as NewEvent, {} as Flags) as any;
     }
+
 
     whenEntrypointIs<E extends Event['entrypoint']>(
         e: E
@@ -858,7 +859,7 @@ class MiddlewareEventCollector<
             this.event.entrypoint === e,
             { ...this.event, entrypoint: e },
             { ...(this as any).flags, whenEntrypointIs: true }
-        );
+        ) as any;
     }
 
     whenTypeIs<T extends Event['type']>(
@@ -884,7 +885,7 @@ class MiddlewareEventCollector<
             this.event.order === order,
             { ...this.event, order },
             { ...(this as any).flags, whenOrderIs: true }
-        );
+        ) as any;
     }
 
     whenProviderIs<P extends keyof Activities>(
@@ -894,7 +895,7 @@ class MiddlewareEventCollector<
             this.event.type === 'activity' && this.event.provider === provider,
             { ...this.event, type: 'activity', provider },
             { ...(this as any).flags, whenProviderIs: true, whenActivityNameIs: false }
-        );
+        ) as any;
     }
 
     whenWorkflowNameIs<W extends Event['workflowName']>(
@@ -904,9 +905,10 @@ class MiddlewareEventCollector<
             this.event.workflowName === workflowName,
             { ...this.event, workflowName },
             { ...(this as any).flags, whenWorkflowNameIs: true }
-        );
+        ) as any;
     }
 
+    // @ts-ignore
     whenActivityNameIs<A extends keyof Activities[Event['provider']]['InferActivities']>(
         activityName: A
     ): Omit<MiddlewareEventCollector<Event & { activityName: A }, Activities, Workflows, Flags & { whenActivityNameIs: true }, AllowUndefined>, ExcludedMethods<Flags & { whenActivityNameIs: true }>> {
@@ -914,7 +916,7 @@ class MiddlewareEventCollector<
             'activityName' in this.event && this.event.activityName === activityName,
             { ...this.event, activityName },
             { ...(this as any).flags, whenActivityNameIs: true }
-        );
+        ) as any;
     }
 
     value(): Event {
@@ -930,7 +932,7 @@ class MiddlewareEventCollector<
         newEvent: NewEvent,
         newFlags: NewFlags
     ): Omit<MiddlewareEventCollector<NewEvent, Activities, Workflows, NewFlags, AllowUndefined>, ExcludedMethods<NewFlags>> {
-        return condition ? this.clone(newEvent, newFlags) : this.handleUndefined();
+        return (condition ? this.clone(newEvent, newFlags) : this.handleUndefined()) as any;
     }
 
     private handleUndefined() {

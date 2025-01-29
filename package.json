@@ -8,6 +8,10 @@
     "build": "tsc",
     "prepare": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOUR_USERNAME/TaskSystemPackage.git"
+  },
   "keywords": [
     "tasks",
     "activities",
