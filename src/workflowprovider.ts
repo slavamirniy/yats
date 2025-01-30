@@ -1,4 +1,4 @@
-import { IActivitesProvider, UnionToArray, WorkflowSystem } from "./base";
+import { IActivitesProvider, UnionToArray, WorkflowSystem } from "./base.js";
 
 export class WorkflowSystemActivityProvider<T extends WorkflowSystem<any, any, any, any>> extends IActivitesProvider<{
     [K in `start_${Extract<keyof T['data']['workflows'], string>}` | `complete_${Extract<keyof T['data']['workflows'], string>}`]: K extends `start_${infer W}` ? {
