@@ -313,7 +313,7 @@ export class WorkflowSystem<
 
     public async getPromiseByWorkflowId(workflowName: keyof WorkflowsDict, workflowId: string) {
         let promise: Promise<any> | undefined;
-        this.awaitersCache.access(val => {
+        await this.awaitersCache.access(val => {
             promise = val[workflowName as string]![workflowId];
             return val;
         });
@@ -338,9 +338,18 @@ export class WorkflowSystem<
             return: (data) => data as any
         });
         
-        if(workflow === undefined) return;
+        if(workflow === undefined) return undefined;
 
-        return this.executeWorkflow(workflowName, workflow.args, workflowId, 'workflow');
+        promise = this.executeWorkflow(workflowName, workflow.args, workflowId, 'workflow');
+
+        await this.awaitersCache.access(val => {
+            if (!(workflowName in val))
+                val[workflowName as string] = {};
+            val[workflowName as string]![workflowId] = promise!;
+            return val;
+        });
+
+        return promise;
     }
 
     private async executeWorkflow<Name extends keyof WorkflowsDict, A, B, C>(
