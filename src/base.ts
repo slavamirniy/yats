@@ -311,8 +311,8 @@ export class WorkflowSystem<
         return { workflow_id: workflowId, promise: awaiter };
     }
 
-    public async getPromiseByWorkflowId(workflowName: keyof WorkflowsDict, workflowId: string) {
-        let promise: Promise<any> | undefined;
+    public async getPromiseByWorkflowId<T extends keyof WorkflowsDict>(workflowName: T, workflowId: string): Promise<Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined> {
+        let promise: Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined;
         await this.awaitersCache.access(val => {
             promise = val[workflowName as string]![workflowId];
             return val;
@@ -352,7 +352,7 @@ export class WorkflowSystem<
         return promise;
     }
 
-    private async executeWorkflow<Name extends keyof WorkflowsDict, A, B, C>(
+    private async executeWorkflow<Name extends keyof WorkflowsDict>(
         workflowName: Name,
         arg: WorkflowsDict[Name]['in'],
         workflowId: string,
