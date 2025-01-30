@@ -940,7 +940,7 @@ class MiddlewareEventCollector<
     }
 
     filter<NewEvent extends Event>(fn: (event: Event) => event is NewEvent): MiddlewareEventCollector<NewEvent, Activities, Workflows, Flags, AllowUndefined> {
-        return this.condition(fn(this.event), {} as NewEvent, {} as Flags) as any;
+        return this.condition(fn(this.event), this.event as NewEvent, {} as Flags) as any;
     }
 
 
