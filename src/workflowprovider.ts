@@ -2,7 +2,7 @@ import { IActivitesProvider, UnionToArray, WorkflowSystem } from "./base";
 
 export class WorkflowSystemActivityProvider<T extends WorkflowSystem<any, any, any, any>> extends IActivitesProvider<{
     [K in `start_${Extract<keyof T['data']['workflows'], string>}` | `complete_${Extract<keyof T['data']['workflows'], string>}`]: K extends `start_${infer W}` ? {
-        in: { args: T['data']['workflows'][W]['in'] },
+        in: T['data']['workflows'][W]['in'],
         out: { workflow_id: string & { __brand: W } },
         additionalData: {}
     } : K extends `complete_${infer W}` ? {
@@ -13,7 +13,7 @@ export class WorkflowSystemActivityProvider<T extends WorkflowSystem<any, any, a
 }> {
     InferActivities!: {
         [K in `start_${Extract<keyof T['data']['workflows'], string>}` | `complete_${Extract<keyof T['data']['workflows'], string>}`]: K extends `start_${infer W}` ? {
-            in: { args: T['data']['workflows'][W]['in'] },
+            in: T['data']['workflows'][W]['in'],
             out: { workflow_id: string & { __brand: W } },
             additionalData: {}
         } : K extends `complete_${infer W}` ? {
@@ -28,12 +28,12 @@ export class WorkflowSystemActivityProvider<T extends WorkflowSystem<any, any, a
     }
 
     async getActivityResult<Name extends keyof this['InferActivities']>(
-        activityname: Name, 
+        activityname: Name,
         args: this['InferActivities'][Name]['in']
     ): Promise<this['InferActivities'][Name]['out']> {
         if (String(activityname).startsWith('start_')) {
             const workflowName = String(activityname).slice('start_'.length);
-            const workflow = await this.workflowSystem.execute(workflowName, (args as any).args);
+            const workflow = await this.workflowSystem.execute(workflowName, args);
             return { workflow_id: workflow.workflow_id } as any;
         }
 
@@ -47,7 +47,7 @@ export class WorkflowSystemActivityProvider<T extends WorkflowSystem<any, any, a
     }
 
     getActivitiesNames(): UnionToArray<`start_${Extract<keyof T['data']['workflows'], string>}` | `complete_${Extract<keyof T['data']['workflows'], string>}`> {
-        return Object.keys(this.workflowSystem.data.workflows).map(name => 
+        return Object.keys(this.workflowSystem.data.workflows).map(name =>
             [`start_${name}`, `complete_${name}`]
         ).flat() as any;
     }
