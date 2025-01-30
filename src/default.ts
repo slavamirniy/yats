@@ -1,4 +1,50 @@
-import { IActivitesProvider, Unpromise, MaybePromise, UnionToArray } from "./base.js";
+import { IActivitesProvider, Unpromise, MaybePromise, UnionToArray, IWorkflowStorage, IActivitiesStorage } from "./base.js";
+
+
+export class CacheStorage implements IWorkflowStorage<any>, IActivitiesStorage<any, any> {
+    
+    constructor(private cache: Map<string, any>) { }
+    private getWorkflowKey(workflowname: string, workflowId: string): string {
+        return `${workflowname}-${workflowId}`;
+    }
+
+    private getActivityKey(providername: any, activityname: string, activityId: string, args: any): string {
+        return `${providername}-${activityname}-${activityId}-${JSON.stringify(args)}`;
+    }
+
+    getWorkflow(data: { workflowname: string; workflowId: string; return: (data: { args: any; result?: any; }) => MaybePromise<{ args: any; result?: any; } & { _brand: "return"; }>; }): MaybePromise<({ args: any; result?: any; } & { _brand: "return"; }) | undefined> {
+        const key = this.getWorkflowKey(data.workflowname, data.workflowId);
+        return data.return(this.cache.get(key));
+    }
+    setWorkflow(data: { args: any; result?: any; workflowname: string; workflowId: string; }): MaybePromise<void> {
+        const key = this.getWorkflowKey(data.workflowname, data.workflowId);
+        this.cache.set(key, data.result);
+    }
+    getWorkflowAdditionalData(data: { workflowname: string; workflowId: string; return: (data: any) => any; }) {
+        const key = this.getWorkflowKey(data.workflowname, data.workflowId);
+        return data.return(this.cache.get(key));
+    }
+    setWorkflowAdditionalData(data: { additionalData: any; workflowname: string; workflowId: string; }): MaybePromise<void> {
+        const key = this.getWorkflowKey(data.workflowname, data.workflowId);
+        this.cache.set(key, data.additionalData);
+    }
+    getActivity(data: { providerName: any; activityName: string; args: any; activityId: string; return: (data: any) => any; }) {
+        const key = this.getActivityKey(data.providerName, data.activityName, data.activityId, data.args);
+        return data.return(this.cache.get(key));
+    }
+    setActivity(data: { result: any; args: any; activityname: string; providername: any; activityId: string; }): MaybePromise<void> {
+        const key = this.getActivityKey(data.providername, data.activityname, data.activityId, data.args);
+        this.cache.set(key, data.result);
+    }
+    getActivityAdditionalData(data: { activityname: string; providername: any; args: any; activityId: string; return: (data: any) => any; }) {
+        const key = this.getActivityKey(data.providername, data.activityname, data.activityId, data.args);
+        return data.return(this.cache.get(key));
+    }
+    setActivityAdditionalData(data: { additionalData: any; activityname: string; providername: any; args: any; activityId: string; }): MaybePromise<void> {
+        const key = this.getActivityKey(data.providername, data.activityname, data.activityId, data.args);
+        this.cache.set(key, data.additionalData);
+    }
+}
 
 export class FunctionActivitiesProvider<T extends { [K: string]: (args: any) => any }> extends IActivitesProvider<{
     [K in keyof T]: {

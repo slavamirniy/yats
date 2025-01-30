@@ -6,6 +6,50 @@ export type Unpromise<T> = T extends Promise<infer D> ? D : T;
 export type UnionToArray<U> = U[];
 export type PromiseIfNot<T> = T extends Promise<any> ? T : Promise<T>
 
+export class QueuedAccessVariable<T> {
+    private value: T;
+    private queue: ((value: T) => Promise<void>)[] = [];
+    private nextRequest: (() => void) | null = null;
+
+    constructor(initialValue: T) {
+        this.value = initialValue;
+        this.processQueue();
+    }
+
+    access(accessFunction: (value: T) => Promise<T> | T): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            this.queue.push(async (value: T) => {
+                try {
+                    this.value = await accessFunction(value);
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                }
+            });
+
+            if (this.nextRequest) {
+                const notify = this.nextRequest;
+                this.nextRequest = null;
+                notify();
+            }
+        });
+    }
+
+    private async processQueue() {
+        while (true) {
+            if (this.queue.length === 0) {
+                await new Promise((resolve) => this.nextRequest = resolve as any);
+            }
+
+            const func = this.queue.shift();
+            if (func) {
+                await func(this.value);
+            }
+        }
+    }
+}
+
+
 // #TYPES
 type OperationGeneral<IN, OUT> = {
     in: IN,
@@ -80,8 +124,6 @@ type MiddlewareOutput<Activities extends Record<string, IActivitesProvider<any>>
     workflowAdditionalData?: any;
 };
 
-type MiddlewareType = "activity" | "workflow";
-type MiddlewareOrder = "input" | "start" | "output";
 type MiddlewareInputGeneric = { entrypoint: "workflow" | "middleware"; commands: { exit: (reason: string) => void; } };
 
 type MiddlewareInput<Activities extends Record<string, IActivitesProvider<any>>, Workflows extends Record<string, any>> = MiddlewareInputGeneric & (
@@ -245,21 +287,60 @@ export class WorkflowSystem<
     Middlewares extends Record<string, any>,
     StoragesTypes extends Record<string, any>
 > {
-    private awaitersCache: { [type: string]: { [workflowId: string]: Promise<any> } } = {};
+    private awaitersCache: QueuedAccessVariable<{ [type: string]: { [workflowId: string]: Promise<any> } }> = new QueuedAccessVariable({});
     private storages: StoragesTypes = {} as StoragesTypes;
 
     constructor(public data: {
         activitiesProviders: ActivitiesProvidersDict,
         workflows: WorkflowsDict,
         middlewares: Middlewares,
-        storageSelector?: StorageSelectorFunction<ActivitiesProvidersDict, WorkflowsDict, any>,
+        storageSelector: StorageSelectorFunction<ActivitiesProvidersDict, WorkflowsDict, any>,
         storages: StoragesTypes,
         id_generator: () => string
     }) { }
 
-    public execute<Name extends keyof WorkflowsDict>(workflowName: Name, args: WorkflowsDict[Name]['in']) {
+    public async execute<Name extends keyof WorkflowsDict>(workflowName: Name, args: WorkflowsDict[Name]['in']) {
         const workflowId = this.data.id_generator();
-        return { workflow_id: workflowId, promise: this.executeWorkflow(workflowName, args, workflowId) };
+        const awaiter = this.executeWorkflow(workflowName, args, workflowId);
+        await this.awaitersCache.access(val => {
+            if (!(workflowName in val))
+                val[workflowName as string] = {};
+            val[workflowName as string]![workflowId] = awaiter;
+            return val;
+        });
+        return { workflow_id: workflowId, promise: awaiter };
+    }
+
+    public async getPromiseByWorkflowId(workflowName: keyof WorkflowsDict, workflowId: string) {
+        let promise: Promise<any> | undefined;
+        this.awaitersCache.access(val => {
+            promise = val[workflowName as string]![workflowId];
+            return val;
+        });
+    
+        if(promise !== undefined) {
+            return promise;
+        }
+
+        const storage: IWorkflowStorage<WorkflowsDict> | undefined = await this.data.storageSelector({
+            workflowname: workflowName as string,
+            method: 'get',
+            type: 'workflow',
+            set_storage: (s) => this.getStorage(s)
+        });
+        if(storage === undefined) {
+            throw new Error(`Storage for workflow ${String(workflowName)} not found`);
+        }
+
+        const workflow = await storage.getWorkflow({
+            workflowname: workflowName as string,
+            workflowId,
+            return: (data) => data as any
+        });
+        
+        if(workflow === undefined) return;
+
+        return this.executeWorkflow(workflowName, workflow.args, workflowId, 'workflow');
     }
 
     private async executeWorkflow<Name extends keyof WorkflowsDict, A, B, C>(
