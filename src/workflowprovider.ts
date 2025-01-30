@@ -40,6 +40,9 @@ export class WorkflowSystemActivityProvider<T extends WorkflowSystem<any, any, a
         if (String(activityname).startsWith('complete_')) {
             const workflowName = String(activityname).slice('complete_'.length);
             const result = await this.workflowSystem.getPromiseByWorkflowId(workflowName, (args as any).workflow_id);
+            if (result === undefined) {
+                throw new Error(`Workflow ${workflowName} with id ${(args as any).workflow_id} not found`);
+            }
             return result as any;
         }
 
