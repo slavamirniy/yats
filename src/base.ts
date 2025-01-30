@@ -806,7 +806,7 @@ export class WorkflowSystemBuilder<
         if (this.data.storageSelector === undefined)
             throw new Error("Attempt to build WorkflowSystem without StorageSelector")
 
-        return new WorkflowSystem(this.data);
+        return new WorkflowSystem(this.data as any);
     }
 }
 
