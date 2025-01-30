@@ -1,9 +1,11 @@
 import { IActivitesProvider, Unpromise, MaybePromise, UnionToArray, IWorkflowStorage, IActivitiesStorage } from "./base.js";
 
 
-export class CacheStorage implements IWorkflowStorage<any>, IActivitiesStorage<any, any> {
+export class MapStorage implements IWorkflowStorage<any>, IActivitiesStorage<any, any> {
     
-    constructor(private cache: Map<string, any>) { }
+    private cache: Map<string, any> = new Map();
+
+    constructor() { }
     private getWorkflowKey(workflowname: string, workflowId: string): string {
         return `${workflowname}-${workflowId}`;
     }
