@@ -12,7 +12,7 @@ export class WorkflowSystemActivityProvider<T extends WorkflowSystem<any, any, a
         additionalData: T['data']['workflows'][K]['additionalData']
     }
 }> {
-    InferActivities!: { [K in keyof T["data"]["workflows"]]: { in: T["data"]["workflows"][K]["in"]; out: T["data"]["workflows"][K]["out"]; additionalData: T["data"]["workflows"][K]["additionalData"]; }; };
+    InferActivities!: { [K in keyof T["data"]["workflows"]]: { in: { args: T["data"]["workflows"][K]["in"]; }; out: { workflowId: string; }; additionalData: {}; } | { in: { workflowId: string; }; out: T["data"]["workflows"][K]["out"]; additionalData: T["data"]["workflows"][K]["additionalData"]; }; };
 
     constructor(private workflowSystem: T) {
         super();
