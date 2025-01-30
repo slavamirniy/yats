@@ -803,10 +803,12 @@ export class WorkflowSystemBuilder<
     }
 
     build() {
-        if (this.data.storageSelector === undefined)
+        const data = this.data;
+
+        if (data.storageSelector === undefined)
             throw new Error("Attempt to build WorkflowSystem without StorageSelector")
 
-        return new WorkflowSystem(this.data as any);
+        return new WorkflowSystem(data as Required<typeof data>);
     }
 }
 
