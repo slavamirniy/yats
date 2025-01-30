@@ -1,40 +1,54 @@
 import { IActivitesProvider, UnionToArray, WorkflowSystem } from "./base";
 
 export class WorkflowSystemActivityProvider<T extends WorkflowSystem<any, any, any, any>> extends IActivitesProvider<{
-    [K in keyof T['data']['workflows']]: {
-        in: { args: T['data']['workflows'][K]['in'] },
-        out: { workflowId: string & { __brand: K } },
+    [K in `start_${Extract<keyof T['data']['workflows'], string>}` | `complete_${Extract<keyof T['data']['workflows'], string>}`]: K extends `start_${infer W}` ? {
+        in: { args: T['data']['workflows'][W]['in'] },
+        out: { workflow_id: string & { __brand: W } },
         additionalData: {}
-    } |
-    {
-        in: { workflowId: string & { __brand: K } },
-        out: { workflowId: string & { __brand: K }, result: T['data']['workflows'][K]['out'] },
-        additionalData: T['data']['workflows'][K]['additionalData']
-    }
+    } : K extends `complete_${infer W}` ? {
+        in: { workflow_id: string & { __brand: W } },
+        out: T['data']['workflows'][W]['out'],
+        additionalData: T['data']['workflows'][W]['additionalData']
+    } : never
 }> {
-    InferActivities!: { [K in keyof T["data"]["workflows"]]: { in: { args: T["data"]["workflows"][K]["in"]; }; out: { workflowId: string & { __brand: K; }; }; additionalData: {}; } | { in: { workflowId: string & { __brand: K; }; }; out: { workflowId: string & { __brand: K; }; result: T["data"]["workflows"][K]["out"]; }; additionalData: T["data"]["workflows"][K]["additionalData"]; }; };
+    InferActivities!: {
+        [K in `start_${Extract<keyof T['data']['workflows'], string>}` | `complete_${Extract<keyof T['data']['workflows'], string>}`]: K extends `start_${infer W}` ? {
+            in: { args: T['data']['workflows'][W]['in'] },
+            out: { workflow_id: string & { __brand: W } },
+            additionalData: {}
+        } : K extends `complete_${infer W}` ? {
+            in: { workflow_id: string & { __brand: W } },
+            out: T['data']['workflows'][W]['out'],
+            additionalData: T['data']['workflows'][W]['additionalData']
+        } : never
+    };
 
     constructor(private workflowSystem: T) {
         super();
     }
 
-    async getActivityResult<Name extends keyof T["data"]["workflows"]>(
-        activityname: Name,
-        arg: { args: T['data']['workflows'][Name]['in'] } | { workflowId: string & { __brand: Name } }
-    ): Promise<T['data']['workflows'][Name]['out']> {
-        if ('args' in arg) {
-            const data = await this.workflowSystem.execute(activityname, arg.args);
-            return { workflowId: data.workflow_id as string & { __brand: Name } };
+    async getActivityResult<Name extends keyof this['InferActivities']>(
+        activityname: Name, 
+        args: this['InferActivities'][Name]['in']
+    ): Promise<this['InferActivities'][Name]['out']> {
+        if (String(activityname).startsWith('start_')) {
+            const workflowName = String(activityname).slice('start_'.length);
+            const workflow = await this.workflowSystem.execute(workflowName, (args as any).args);
+            return { workflow_id: workflow.workflow_id } as any;
         }
-        return {
-            workflowId: arg.workflowId,
-            result: await this.workflowSystem.getPromiseByWorkflowId(activityname, arg.workflowId)
-        };
+
+        if (String(activityname).startsWith('complete_')) {
+            const workflowName = String(activityname).slice('complete_'.length);
+            const result = await this.workflowSystem.getPromiseByWorkflowId(workflowName, (args as any).workflow_id);
+            return result as any;
+        }
+
+        throw new Error(`Unknown activity ${String(activityname)}`);
     }
 
-
-    getActivitiesNames(): UnionToArray<keyof T["data"]["workflows"]> {
-        throw new Error("Method not implemented.");
+    getActivitiesNames(): UnionToArray<`start_${Extract<keyof T['data']['workflows'], string>}` | `complete_${Extract<keyof T['data']['workflows'], string>}`> {
+        return Object.keys(this.workflowSystem.data.workflows).map(name => 
+            [`start_${name}`, `complete_${name}`]
+        ).flat() as any;
     }
-
 }
