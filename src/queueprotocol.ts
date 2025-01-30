@@ -79,3 +79,49 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
         this.isRunning = false;
     }
 }
+
+export class QueueCacheStorage implements IQueueStorage {
+    private tasks: (QueueTask & { result?: any, state: 'queued' | 'running' | 'completed' })[] = [];
+
+    constructor(private timeout: number = 1000) { }
+
+    pushTask(task: QueueTask): MaybePromise<void> {
+        this.tasks.unshift({ ...task, state: 'queued' });
+    }
+
+    popTask(): MaybePromise<QueueTask | undefined> {
+        const task = this.tasks.find(t => t.state === 'queued');
+        if (!task) return undefined;
+
+        task.state = 'running';
+        return task;
+    }
+
+    completeTask(id: string, result: any): MaybePromise<void> {
+        const task = this.tasks.find(task => task.id === id);
+        if (!task) throw new Error(`Task with id ${id} not found`);
+
+        task.state = 'completed';
+        task.result = result;
+    }
+
+    getTaskResult(id: string): MaybePromise<any> {
+        const task = this.tasks.find(task => task.id === id);
+        if (!task) {
+            throw new Error(`Task with id ${id} not found`);
+        }
+
+        if (task.state !== 'completed') {
+            return new Promise((resolve) => {
+                const interval = setInterval(() => {
+                    if (task.state === 'completed') {
+                        clearInterval(interval);
+                        resolve(task.result);
+                    }
+                }, this.timeout);
+            });
+        }
+
+        return task.result;
+    }
+}
