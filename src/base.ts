@@ -434,7 +434,7 @@ export class WorkflowSystem<
                         workflowName,
                         workflowId,
                         middlewareExecutor,
-                        state
+                        state as any
                     );
                 (middlewareExecutor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] =
                     (args: any) => this.executeActivity(
@@ -444,7 +444,7 @@ export class WorkflowSystem<
                         workflowName,
                         workflowId,
                         middlewareExecutor,
-                        state,
+                        state as any,
                         'middleware'
                     );
             }
@@ -503,7 +503,7 @@ export class WorkflowSystem<
         workflowName: keyof WorkflowsDict,
         workflowId: string,
         executor: ActivityExecutor<ActivitiesProvidersDict>,
-        workflowAdditionalData: Record<string, any>,
+        workflowState: {additionalData: {}},
         entrypoint: "workflow" | "middleware" = "workflow"
     ): Promise<any> {
         const activityId = this.data.id_generator();
@@ -511,8 +511,7 @@ export class WorkflowSystem<
         const state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict> = {
             additionalData: {},
             input: arg,
-            output: undefined,
-            workflowAdditionalData: workflowAdditionalData
+            output: undefined
         }
 
         // Проверяем есть ли сохраненная активность
@@ -522,22 +521,22 @@ export class WorkflowSystem<
         }
         const outputFunction: any = {
             setAdditionalData(configurator: any) {
-                state.additionalData = configurator(state.additionalData, { activityAdditionalData: state.additionalData, workflowAdditionalData: state.workflowAdditionalData });
+                state.additionalData = configurator(state.additionalData, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData });
                 return outputFunction;
             },
             setInput(configurator: any) {
-                state.input = configurator(state.input, { activityAdditionalData: state.additionalData, workflowAdditionalData: state.workflowAdditionalData });
+                state.input = configurator(state.input, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData });
                 return outputFunction;
             },
             setOutput(configurator: any) {
-                state.output = configurator(state.output, { activityAdditionalData: state.additionalData, workflowAdditionalData: state.workflowAdditionalData });
+                state.output = configurator(state.output, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData });
                 return outputFunction;
             },
             getState() {
                 return state;
             },
             setWorkflowAdditionalData(configurator: any) {
-                state.workflowAdditionalData = configurator(state.workflowAdditionalData, { workflowAdditionalData: state.workflowAdditionalData, activityAdditionalData: state.additionalData });
+                workflowState.additionalData = configurator(workflowState.additionalData, { workflowAdditionalData: workflowState.additionalData, activityAdditionalData: state.additionalData });
                 return outputFunction;
             },
         }
@@ -614,8 +613,8 @@ export class WorkflowSystem<
             };
             const collector = MiddlewareEventCollector.from(event as any);
             await this.saveActivityToStorage(providerName, activityName, activityId, state.input, state.output);
-            if(state.workflowAdditionalData) {
-                await this.saveWorkflowAdditionalDataToStorage(workflowName, workflowId, state.workflowAdditionalData);
+            if(workflowState.additionalData) {
+                await this.saveWorkflowAdditionalDataToStorage(workflowName, workflowId, workflowState.additionalData);
             }
             await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
         }
