@@ -252,7 +252,6 @@ export interface IActivitiesStorage<ACTIVITIES extends Record<string, IActivites
     setActivityAdditionalData(data: { [ProviderName in PROVIDER]: { [ActivityName in keyof ACTIVITIES[ProviderName]['InferActivities']]: { additionalData: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['additionalData'], activityname: ActivityName, providername: ProviderName, args: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['in'], activityId: string } }[keyof ACTIVITIES[ProviderName]['InferActivities']] }[PROVIDER]): MaybePromise<void>
 }
 
-// Возможно нужно будет подключить вместо keyof any, реальные имена
 export interface IWorkflowStorage<WorkflowsDict extends WorkflowsDescriptionWithAdditionalData<keyof any>> {
     getWorkflow(data: { [K in keyof WorkflowsDict]: { workflowname: K, workflowId: string, return: StorageReturnFunc<{ args: WorkflowsDict[K]['in'], result?: WorkflowsDict[K]['out'] }> } }[keyof WorkflowsDict]): MaybePromise<StorageReturn<{ args: WorkflowsDict[keyof WorkflowsDict]['in'], result?: WorkflowsDict[keyof WorkflowsDict]['out'] }> | undefined>
     setWorkflow(data: { [K in keyof WorkflowsDict]: { args: WorkflowsDict[K]['in'], result?: WorkflowsDict[K]['out'], workflowname: K, workflowId: string } }[keyof WorkflowsDict]): MaybePromise<void>
@@ -615,6 +614,9 @@ export class WorkflowSystem<
             };
             const collector = MiddlewareEventCollector.from(event as any);
             await this.saveActivityToStorage(providerName, activityName, activityId, state.input, state.output);
+            if(state.workflowAdditionalData) {
+                await this.saveWorkflowAdditionalDataToStorage(workflowName, workflowId, state.workflowAdditionalData);
+            }
             await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
         }
 
@@ -677,6 +679,17 @@ export class WorkflowSystem<
             set_storage: (s: keyof StoragesTypes) => this.getStorage(s)
         }) as IWorkflowStorage<WorkflowsDict>;
         await storage?.setWorkflow?.({ workflowname: workflowName, workflowId, args, result });
+    }
+
+    private async saveWorkflowAdditionalDataToStorage(workflowName: keyof WorkflowsDict, workflowId: string, additionalData: any) {
+        if (!this.data.storageSelector) return;
+        const storage = (this.data.storageSelector as any)({
+            method: 'set',
+            type: 'workflow',
+            workflowname: workflowName,
+            set_storage: (s: keyof StoragesTypes) => this.getStorage(s)
+        }) as IWorkflowStorage<WorkflowsDict>;
+        await storage?.setWorkflowAdditionalData?.({ workflowname: workflowName, workflowId, additionalData });
     }
 
     private async getActivityFromStorage(providerName: keyof ActivitiesProvidersDict, activityName: string, activityId: string, args: any) {
