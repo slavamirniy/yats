@@ -521,22 +521,22 @@ export class WorkflowSystem<
         }
         const outputFunction: any = {
             setAdditionalData(configurator: any) {
-                state.additionalData = configurator(state.additionalData, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData });
+                state.additionalData = (() => configurator(state.additionalData, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
                 return outputFunction;
             },
             setInput(configurator: any) {
-                state.input = configurator(state.input, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData });
+                state.input = (() => configurator(state.input, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
                 return outputFunction;
             },
             setOutput(configurator: any) {
-                state.output = configurator(state.output, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData });
+                state.output = (() => configurator(state.output, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
                 return outputFunction;
             },
             getState() {
                 return state;
             },
             setWorkflowAdditionalData(configurator: any) {
-                workflowState.additionalData = configurator(workflowState.additionalData, { workflowAdditionalData: workflowState.additionalData, activityAdditionalData: state.additionalData });
+                workflowState.additionalData = (() => configurator(workflowState.additionalData, { workflowAdditionalData: workflowState.additionalData, activityAdditionalData: state.additionalData }))();
                 return outputFunction;
             },
         }
@@ -616,7 +616,8 @@ export class WorkflowSystem<
             if (state.additionalData) {
                 await this.saveActivityAdditionalDataToStorage(providerName, activityName, activityId, state.input, state.additionalData);
             }
-            if (workflowState.additionalData) {
+            if (state.workflowAdditionalData) {
+                workflowState.additionalData = state.workflowAdditionalData;
                 await this.saveWorkflowAdditionalDataToStorage(workflowName, workflowId, workflowState.additionalData);
             }
             await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
