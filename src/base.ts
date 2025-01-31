@@ -316,8 +316,8 @@ export class WorkflowSystem<
             promise = val[workflowName as string]![workflowId];
             return val;
         });
-    
-        if(promise !== undefined) {
+
+        if (promise !== undefined) {
             return promise;
         }
 
@@ -327,7 +327,7 @@ export class WorkflowSystem<
             type: 'workflow',
             set_storage: (s) => this.getStorage(s)
         });
-        if(storage === undefined) {
+        if (storage === undefined) {
             throw new Error(`Storage for workflow ${String(workflowName)} not found`);
         }
 
@@ -336,8 +336,8 @@ export class WorkflowSystem<
             workflowId,
             return: (data) => data as any
         });
-        
-        if(workflow === undefined) return undefined;
+
+        if (workflow === undefined) return undefined;
 
         promise = this.executeWorkflow(workflowName, workflow.args, workflowId, 'workflow');
 
@@ -503,7 +503,7 @@ export class WorkflowSystem<
         workflowName: keyof WorkflowsDict,
         workflowId: string,
         executor: ActivityExecutor<ActivitiesProvidersDict>,
-        workflowState: {additionalData: {}},
+        workflowState: { additionalData: {} },
         entrypoint: "workflow" | "middleware" = "workflow"
     ): Promise<any> {
         const activityId = this.data.id_generator();
@@ -613,7 +613,10 @@ export class WorkflowSystem<
             };
             const collector = MiddlewareEventCollector.from(event as any);
             await this.saveActivityToStorage(providerName, activityName, activityId, state.input, state.output);
-            if(workflowState.additionalData) {
+            if (state.additionalData) {
+                await this.saveActivityAdditionalDataToStorage(providerName, activityName, activityId, state.input, state.additionalData);
+            }
+            if (workflowState.additionalData) {
                 await this.saveWorkflowAdditionalDataToStorage(workflowName, workflowId, workflowState.additionalData);
             }
             await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
@@ -719,6 +722,18 @@ export class WorkflowSystem<
             set_storage: (s: keyof StoragesTypes) => this.getStorage(s)
         }) as IActivitiesStorage<ActivitiesProvidersDict, keyof ActivitiesProvidersDict>;
         await storage?.setActivity?.({ result, args, activityname: activityName, providername: providerName, activityId });
+    }
+
+    private async saveActivityAdditionalDataToStorage(providerName: keyof ActivitiesProvidersDict, activityName: string, activityId: string, args: any, additionalData: any) {
+        if (!this.data.storageSelector) return;
+        const storage = (this.data.storageSelector as any)({
+            method: 'set',
+            type: 'activity',
+            providername: providerName,
+            activityname: activityName,
+            set_storage: (s: keyof StoragesTypes) => this.getStorage(s)
+        }) as IActivitiesStorage<ActivitiesProvidersDict, keyof ActivitiesProvidersDict>;
+        await storage?.setActivityAdditionalData?.({ additionalData, activityname: activityName, providername: providerName, activityId, args: args });
     }
 
     public setStorage<T extends keyof StoragesTypes>(storageName: T, storage: StoragesTypes[T]) {
