@@ -31,7 +31,7 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
         super();
     }
 
-    async startAsWorker(): Promise<void> {
+    async work(): Promise<void> {
         const provider = this.provider;
         if (!provider) throw new Error('Provider not set');
 

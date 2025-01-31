@@ -2,7 +2,7 @@ import { IActivitesProvider, Unpromise, MaybePromise, UnionToArray, IWorkflowSto
 
 
 export class MapStorage implements IWorkflowStorage<any>, IActivitiesStorage<any, any> {
-    
+
     private cache: Map<string, any> = new Map();
 
     constructor() { }
@@ -85,22 +85,22 @@ export abstract class IProtocolActivitiesProvider<T extends Record<string, any>>
 
     private isWorker: boolean = false;
 
-    public startWorking(): void {
+    public start(): void {
         if (!this.provider) {
             throw new Error('Provider must be set before starting as worker');
         }
         this.isWorker = true;
-        this.startAsWorker();
+        this.work();
     }
 
-    abstract startAsWorker(): MaybePromise<void>;
+    protected abstract work(): MaybePromise<void>;
 
     abstract send<Name extends keyof T>(activityname: Name, arg: { [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["in"]): MaybePromise<{ [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["out"]>;
 
     getActivityResult<Name extends keyof T>(activityname: Name, arg: { [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["in"]): MaybePromise<{ [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["out"]> {
         if (this.isWorker) {
-        if (!this.provider) throw new Error('Provider not set');
-        return this.provider.getActivityResult(activityname, arg);
+            if (!this.provider) throw new Error('Provider not set');
+            return this.provider.getActivityResult(activityname, arg);
         } else {
             return this.send(activityname, arg);
         }

@@ -11,7 +11,7 @@ export class ApiProtocol<T extends Record<string, any>> extends IProtocolActivit
         super();
     }
 
-    startAsWorker(): MaybePromise<void> {
+    work(): MaybePromise<void> {
         const provider = this.provider;
         if (!provider) throw new Error('Provider not set');
 
