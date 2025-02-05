@@ -114,8 +114,9 @@ type MiddlewareInput<Activities extends Record<string, IActivitesProvider<any>>,
                 ({ commands: { resolve: (output: Activities[Provider]['InferActivities'][ActivityName]['out']) => void; } }) &
                 (
                     { order: "input"; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Activities[Provider]['InferActivities'][ActivityName], MiddlewareOutput<Activities, Workflows>, 'setOutput'>['Type'] } } |
-                    { order: "start"; commands: { return: MiddlewareOutputCollector<Activities[Provider]['InferActivities'][ActivityName], MiddlewareOutput<Activities, Workflows>, 'setOutput' | 'setInput'>['Type'] } } |
-                    { order: "output"; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Activities[Provider]['InferActivities'][ActivityName], MiddlewareOutput<Activities, Workflows>, 'setInput'>['Type'] }; operation: { output: Activities[Provider]['InferActivities'][ActivityName]['out']; }; })
+                    { order: "start"; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Activities[Provider]['InferActivities'][ActivityName], MiddlewareOutput<Activities, Workflows>, 'setOutput' | 'setInput'>['Type'] } } |
+                    { order: "output"; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Activities[Provider]['InferActivities'][ActivityName], MiddlewareOutput<Activities, Workflows>, 'setInput'>['Type'] }; operation: { output: Activities[Provider]['InferActivities'][ActivityName]['out']; }; } |
+                    { order: "error"; error: any; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Activities[Provider]['InferActivities'][ActivityName], MiddlewareOutput<Activities, Workflows>, 'setInput'>['Type'] } })
                 &
                 {
                     provider: Provider;
@@ -148,9 +149,9 @@ type MiddlewareInput<Activities extends Record<string, IActivitesProvider<any>>,
         }
         ) &
         (
-            { order: "input"; commands: { return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setOutput'>['Type'] } } |
-            { order: "start"; commands: { return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setOutput' | 'setInput'>['Type'] } } |
-            { order: "output"; opearion: { output: Workflows[WorkflowName]['out']; }; commands: { return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setInput'>['Type'] } }
+            { order: "input"; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setOutput'>['Type'] } } |
+            { order: "start"; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setOutput' | 'setInput'>['Type'] } } |
+            { order: "output"; opearion: { executor: ActivityExecutor<Activities>; output: Workflows[WorkflowName]['out']; }; commands: { return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setInput'>['Type'] } }
         )
     }[keyof Workflows]
     )
@@ -350,44 +351,6 @@ export class WorkflowSystem<
             output: undefined
         }
 
-        const savedWorkflow = await this.getWorkflowFromStorage(workflowName, workflowId);
-        if (savedWorkflow) {
-            state.input = savedWorkflow.args;
-        }
-
-        const outputFunction = {
-            setAdditionalData(configurator: any) {
-                state.additionalData = configurator(state.additionalData, { activityAdditionalData: state.additionalData, workflowAdditionalData: state.workflowAdditionalData });
-                return outputFunction;
-            },
-            getState() {
-                return state;
-            }
-        } as any;
-
-        // Выполняем input middleware
-        if (this.data.middlewares) {
-            const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
-                type: "workflow",
-                order: "input",
-                workflowName,
-                entrypoint: entrypoint,
-                operation: state as any,
-                commands: {
-                    exit: (reason) => { throw new Error(reason) },
-                    return: outputFunction
-                }
-            };
-            const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
-            const result = await this.executeMiddlewares(collector as any, event);
-            if (result?.input) {
-                state.input = result.input;
-            }
-        }
-
-        // Сохраняем воркфлоу в хранилище
-        await this.saveWorkflowToStorage(workflowName, workflowId, state.input);
-
         // Создаем executor для активностей
         const executor = {} as {
             [P in keyof ActivitiesProvidersDict]: {
@@ -435,6 +398,45 @@ export class WorkflowSystem<
             }
         }
 
+        const savedWorkflow = await this.getWorkflowFromStorage(workflowName, workflowId);
+        if (savedWorkflow) {
+            state.input = savedWorkflow.args;
+        }
+
+        const outputFunction = {
+            setAdditionalData(configurator: any) {
+                state.additionalData = configurator(state.additionalData, { activityAdditionalData: state.additionalData, workflowAdditionalData: state.workflowAdditionalData });
+                return outputFunction;
+            },
+            getState() {
+                return state;
+            }
+        } as any;
+
+        // Выполняем input middleware
+        if (this.data.middlewares) {
+            const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
+                type: "workflow",
+                order: "input",
+                workflowName,
+                entrypoint: entrypoint,
+                operation: state as any,
+                commands: {
+                    exit: (reason) => { throw new Error(reason) },
+                    return: outputFunction,
+                    executor: executor
+                }
+            };
+            const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
+            const result = await this.executeMiddlewares(collector as any, event);
+            if (result?.input) {
+                state.input = result.input;
+            }
+        }
+
+        // Сохраняем воркфлоу в хранилище
+        await this.saveWorkflowToStorage(workflowName, workflowId, state.input);
+
         // Выполняем start middleware
         if (this.data.middlewares) {
             const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
@@ -445,7 +447,8 @@ export class WorkflowSystem<
                 operation: state as any,
                 commands: {
                     exit: (reason) => { throw new Error(reason) },
-                    return: outputFunction
+                    return: outputFunction,
+                    executor: executor
                 }
             };
             const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
@@ -468,7 +471,8 @@ export class WorkflowSystem<
                 operation: state as any,
                 commands: {
                     exit: (reason) => { throw new Error(reason) },
-                    return: outputFunction
+                    return: outputFunction,
+                    executor: executor
                 }
             };
             const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
@@ -491,145 +495,197 @@ export class WorkflowSystem<
         workflowState: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict>,
         entrypoint: "workflow" | "middleware" = "workflow"
     ): Promise<any> {
-        const activityId = this.data.id_generator();
+        const promise = new Promise<any>(async (resolvePromise, rejectPromise) => {
+            const activityId = this.data.id_generator();
 
-        const state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict> = {
-            additionalData: {},
-            input: arg,
-            output: undefined
-        }
+            let isResolved = false;
+            const resolve = async (value: any) => {
+                if (isResolved) return;
 
-        // Проверяем есть ли сохраненная активность
-        const savedActivity = await this.getActivityFromStorage(providerName, activityName, activityId, arg);
-        if (savedActivity) {
-            return savedActivity;
-        }
-        const outputFunction: any = {
-            setAdditionalData(configurator: any) {
-                state.additionalData = (() => configurator(state.additionalData, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
-                return outputFunction;
-            },
-            setInput(configurator: any) {
-                state.input = (() => configurator(state.input, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
-                return outputFunction;
-            },
-            setOutput(configurator: any) {
-                state.output = (() => configurator(state.output, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
-                return outputFunction;
-            },
-            getState() {
-                return state;
-            },
-            setWorkflowAdditionalData(configurator: any) {
-                workflowState.additionalData = (() => configurator(workflowState.additionalData, { workflowAdditionalData: workflowState.additionalData, activityAdditionalData: state.additionalData }))();
-                return outputFunction;
-            },
-        }
+                await this.saveActivityToStorage(providerName, activityName, activityId, state.input, state.output);
 
-        // Выполняем input middleware
-        if (this.data.middlewares) {
-            const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
-                type: "activity",
-                order: "input",
-                provider: providerName,
-                activityName,
-                entrypoint: entrypoint,
-                workflowName,
-                operation: state as any,
-                commands: {
-                    exit: (reason) => { throw new Error(reason) },
-                    resolve: (output) => output,
-                    executor: executor,
-                    return: outputFunction
-                },
-                workflowOperation: {
-                    input: workflowState.input,
-                    output: workflowState.output,
-                    additionalData: workflowState.additionalData
+                if (state.additionalData) {
+                    await this.saveActivityAdditionalDataToStorage(providerName, activityName, activityId, state.input, state.additionalData);
+                }
+                if (state.workflowAdditionalData) {
+                    workflowState.additionalData = state.workflowAdditionalData;
+                    await this.saveWorkflowAdditionalDataToStorage(workflowName, workflowId, workflowState.additionalData);
                 }
 
-            };
-            const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
-            const result = await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
-
-            if (result?.input) {
-                state.input = result.input;
+                isResolved = true;
+                resolvePromise(value);
             }
-        }
 
-        // Выполняем start middleware
-        const executeStartMiddleware = this.data.middlewares ? (async () => {
-            const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
-                type: "activity",
-                order: "start",
-                provider: providerName,
-                activityName,
-                workflowName,
-                entrypoint: entrypoint,
-                operation: state as any,
-                commands: {
-                    exit: (reason) => { throw new Error(reason) },
-                    resolve: (output) => output,
-                    return: outputFunction
+            function reject(reason: any) {
+                if (isResolved) return;
+                isResolved = true;
+                rejectPromise(reason);
+            }
+
+            const state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict> = {
+                additionalData: {},
+                input: arg,
+                output: undefined
+            }
+
+            // Проверяем есть ли сохраненная активность
+            const savedActivity = await this.getActivityFromStorage(providerName, activityName, activityId, arg);
+            if (savedActivity) {
+                return resolvePromise(savedActivity);
+            }
+            const outputFunction: any = {
+                setAdditionalData(configurator: any) {
+                    state.additionalData = (() => configurator(state.additionalData, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
+                    return outputFunction;
                 },
-                workflowOperation: {
-                    input: workflowState.input,
-                    output: workflowState.output,
-                    additionalData: workflowState.additionalData
-                }
-
-            };
-            const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
-            await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
-
-
-        }) : () => undefined;
-
-        // Выполняем активность
-        await Promise.all([
-            (this.data.activitiesProviders[providerName].getActivityResult(activityName, state.input) as Promise<any>)
-                .then(result => {
-                    state.output = result;
-                }),
-            executeStartMiddleware()
-        ]);
-
-        // Выполняем output middleware
-        if (this.data.middlewares) {
-            const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
-                type: "activity",
-                order: "output",
-                provider: providerName,
-                activityName,
-                workflowName,
-                entrypoint: entrypoint,
-                operation: state as any,
-                commands: {
-                    exit: (reason) => { throw new Error(reason) },
-                    resolve: (output) => output,
-                    executor: executor,
-                    return: outputFunction
+                setInput(configurator: any) {
+                    state.input = (() => configurator(state.input, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
+                    return outputFunction;
                 },
-                workflowOperation: {
-                    input: workflowState.input,
-                    output: workflowState.output,
-                    additionalData: workflowState.additionalData
+                setOutput(configurator: any) {
+                    state.output = (() => configurator(state.output, { activityAdditionalData: state.additionalData, workflowAdditionalData: workflowState.additionalData }))();
+                    return outputFunction;
+                },
+                getState() {
+                    return state;
+                },
+                setWorkflowAdditionalData(configurator: any) {
+                    workflowState.additionalData = (() => configurator(workflowState.additionalData, { workflowAdditionalData: workflowState.additionalData, activityAdditionalData: state.additionalData }))();
+                    return outputFunction;
+                },
+            }
+
+            // Выполняем input middleware
+            if (this.data.middlewares) {
+                const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
+                    type: "activity",
+                    order: "input",
+                    provider: providerName,
+                    activityName,
+                    entrypoint: entrypoint,
+                    workflowName,
+                    operation: state as any,
+                    commands: {
+                        exit: (reason) => reject(reason),
+                        resolve: (output) => resolve(output),
+                        executor: executor,
+                        return: outputFunction
+                    },
+                    workflowOperation: {
+                        input: workflowState.input,
+                        output: workflowState.output,
+                        additionalData: workflowState.additionalData
+                    }
+
+                };
+                const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
+                const result = await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+
+                if (isResolved) return;
+
+                if (result?.input) {
+                    state.input = result.input;
                 }
-            };
-            const collector = MiddlewareEventCollector.from(event as any);
-            await this.saveActivityToStorage(providerName, activityName, activityId, state.input, state.output);
-
-            if (state.additionalData) {
-                await this.saveActivityAdditionalDataToStorage(providerName, activityName, activityId, state.input, state.additionalData);
             }
-            if (state.workflowAdditionalData) {
-                workflowState.additionalData = state.workflowAdditionalData;
-                await this.saveWorkflowAdditionalDataToStorage(workflowName, workflowId, workflowState.additionalData);
-            }
-            await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
-        }
 
-        return state.output;
+            // Выполняем start middleware
+            const executeStartMiddleware = this.data.middlewares ? (async () => {
+                const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
+                    type: "activity",
+                    order: "start",
+                    provider: providerName,
+                    activityName,
+                    workflowName,
+                    entrypoint: entrypoint,
+                    operation: state as any,
+                    commands: {
+                        exit: (reason) => reject(reason),
+                        resolve: (output) => resolve(output),
+                        return: outputFunction,
+                        executor: executor
+                    },
+                    workflowOperation: {
+                        input: workflowState.input,
+                        output: workflowState.output,
+                        additionalData: workflowState.additionalData
+                    }
+
+                };
+                const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
+                await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+
+
+            }) : () => undefined;
+
+            // Выполняем активность
+            await Promise.all([
+                (this.data.activitiesProviders[providerName].getActivityResult(activityName, state.input) as Promise<any>)
+                    .catch(async err => {
+                        const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
+                            type: "activity",
+                            order: "error",
+                            error: err,
+                            provider: providerName,
+                            activityName,
+                            workflowName,
+                            entrypoint: entrypoint,
+                            operation: state as any,
+                            commands: {
+                                exit: (reason) => { throw new Error(reason) },
+                                resolve: (output) => output,
+                                return: outputFunction,
+                                executor: executor
+                            },
+                            workflowOperation: {
+                                input: workflowState.input,
+                                output: workflowState.output,
+                                additionalData: workflowState.additionalData
+                            }
+
+                        };
+                        const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
+                        await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+                    })
+                    .then(result => {
+                        state.output = result;
+                    }),
+                executeStartMiddleware()
+            ]);
+
+            if (isResolved) return;
+
+            // Выполняем output middleware
+            if (this.data.middlewares) {
+                const event: MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict> = {
+                    type: "activity",
+                    order: "output",
+                    provider: providerName,
+                    activityName,
+                    workflowName,
+                    entrypoint: entrypoint,
+                    operation: state as any,
+                    commands: {
+                        exit: (reason) => reject(reason),
+                        resolve: (output) => resolve(output),
+                        executor: executor,
+                        return: outputFunction
+                    },
+
+                    workflowOperation: {
+                        input: workflowState.input,
+                        output: workflowState.output,
+                        additionalData: workflowState.additionalData
+                    }
+                };
+                const collector = MiddlewareEventCollector.from(event as any);
+                await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+
+                if (isResolved) return;
+
+                return resolve(state.output);
+            }
+        })
+        return promise;
     }
 
     private async executeMiddlewares(
