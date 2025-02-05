@@ -488,7 +488,7 @@ export class WorkflowSystem<
         workflowName: keyof WorkflowsDict,
         workflowId: string,
         executor: ActivityExecutor<ActivitiesProvidersDict>,
-        workflowState: OperationWithAdditionalData<any, any, any>,
+        workflowState: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict>,
         entrypoint: "workflow" | "middleware" = "workflow"
     ): Promise<any> {
         const activityId = this.data.id_generator();
@@ -543,10 +543,11 @@ export class WorkflowSystem<
                     return: outputFunction
                 },
                 workflowOperation: {
-                    input: workflowState.in,
-                    output: workflowState.out,
+                    input: workflowState.input,
+                    output: workflowState.output,
                     additionalData: workflowState.additionalData
                 }
+
             };
             const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
             const result = await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
@@ -572,10 +573,11 @@ export class WorkflowSystem<
                     return: outputFunction
                 },
                 workflowOperation: {
-                    input: workflowState.in,
-                    output: workflowState.out,
+                    input: workflowState.input,
+                    output: workflowState.output,
                     additionalData: workflowState.additionalData
                 }
+
             };
             const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
             await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
@@ -609,8 +611,8 @@ export class WorkflowSystem<
                     return: outputFunction
                 },
                 workflowOperation: {
-                    input: workflowState.in,
-                    output: workflowState.out,
+                    input: workflowState.input,
+                    output: workflowState.output,
                     additionalData: workflowState.additionalData
                 }
             };
