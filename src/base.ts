@@ -97,26 +97,6 @@ type Middleware<Activities extends Record<string, IActivitesProvider<any>>, Work
     (collector: Omit<MiddlewareEventCollector<MiddlewareInput<Activities, Workflows>, Activities, Workflows, {
     }, true>, MiddlewareEventCollectorDefaultHiddenFields>, event: MiddlewareInput<Activities, Workflows>) => MaybePromise<MiddlewareOutput<Activities, Workflows> | undefined | void>;
 
-type MiddlewareEvent<Activities extends Record<string, IActivitesProvider<any>>, Workflows extends Record<string, any>> = {
-    type: "activity" | "workflow";
-    order: "input" | "start" | "output";
-    provider?: keyof Activities;
-    activityName?: string;
-    workflowName: keyof Workflows;
-    operation: {
-        input: any;
-        output?: any;
-        additionalData?: any;
-        workflowAdditionalData: any;
-    };
-    commands: {
-        exit: (reason: string) => void;
-        executor?: ActivityExecutor<Activities>;
-        return?: any;
-        resolve?: (output: any) => void;
-    };
-};
-
 type MiddlewareOutput<Activities extends Record<string, IActivitesProvider<any>>, Workflows extends Record<string, any>> = {
     input?: any;
     output?: any;
@@ -145,10 +125,15 @@ type MiddlewareInput<Activities extends Record<string, IActivitesProvider<any>>,
                         input: Activities[Provider]['InferActivities'][ActivityName]['in'];
                         output?: Activities[Provider]['InferActivities'][ActivityName]['out'];
                         additionalData: Activities[Provider]['InferActivities'][ActivityName]['additionalData'];
-                        workflowAdditionalData: Workflows[keyof Workflows]['additionalData'];
                     };
+                    workflowOperation: {
+                        input: Workflows[keyof Workflows]['in'];
+                        output?: Workflows[keyof Workflows]['out'];
+                        additionalData: Workflows[keyof Workflows]['additionalData'];
+                    }
                 }
             }[keyof Activities[Provider]['InferActivities']]
+
         }[keyof Activities])
     ) |
     { type: "workflow"; } & ({
@@ -503,7 +488,7 @@ export class WorkflowSystem<
         workflowName: keyof WorkflowsDict,
         workflowId: string,
         executor: ActivityExecutor<ActivitiesProvidersDict>,
-        workflowState: { additionalData: {} },
+        workflowState: OperationWithAdditionalData<any, any, any>,
         entrypoint: "workflow" | "middleware" = "workflow"
     ): Promise<any> {
         const activityId = this.data.id_generator();
@@ -556,10 +541,16 @@ export class WorkflowSystem<
                     resolve: (output) => output,
                     executor: executor,
                     return: outputFunction
+                },
+                workflowOperation: {
+                    input: workflowState.in,
+                    output: workflowState.out,
+                    additionalData: workflowState.additionalData
                 }
             };
             const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
             const result = await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+
             if (result?.input) {
                 state.input = result.input;
             }
@@ -579,10 +570,17 @@ export class WorkflowSystem<
                     exit: (reason) => { throw new Error(reason) },
                     resolve: (output) => output,
                     return: outputFunction
+                },
+                workflowOperation: {
+                    input: workflowState.in,
+                    output: workflowState.out,
+                    additionalData: workflowState.additionalData
                 }
             };
             const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
             await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+
+
         }) : () => undefined;
 
         // Выполняем активность
@@ -609,10 +607,16 @@ export class WorkflowSystem<
                     resolve: (output) => output,
                     executor: executor,
                     return: outputFunction
+                },
+                workflowOperation: {
+                    input: workflowState.in,
+                    output: workflowState.out,
+                    additionalData: workflowState.additionalData
                 }
             };
             const collector = MiddlewareEventCollector.from(event as any);
             await this.saveActivityToStorage(providerName, activityName, activityId, state.input, state.output);
+
             if (state.additionalData) {
                 await this.saveActivityAdditionalDataToStorage(providerName, activityName, activityId, state.input, state.additionalData);
             }
