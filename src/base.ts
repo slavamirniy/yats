@@ -645,7 +645,21 @@ export class WorkflowSystem<
                         };
                         const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
                         await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+                        reject({
+                            activityName,
+                            providerName,
+                            workflowName,
+                            entrypoint,
+                            operation: state,
+                            workflowOperation: {
+                                input: workflowState.input,
+                                output: workflowState.output,
+                                additionalData: workflowState.additionalData
+                            },
+                            error: err
+                        });
                     })
+
                     .then(result => {
                         state.output = result;
                     }),
