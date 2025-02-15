@@ -339,6 +339,26 @@ export class WorkflowSystem<
         return promise;
     }
 
+    private async findWorkflowByID(workflowName: string, workflowId: string) {
+        const storage: IWorkflowStorage<WorkflowsDict> | undefined = await this.data.storageSelector({
+            workflowname: workflowName as string,
+            method: 'get',
+            type: 'workflow',
+            set_storage: (s) => this.getStorage(s)
+        });
+        if (storage === undefined) {
+            throw new Error(`Storage for workflow ${String(workflowName)} not found`);
+        }
+
+        const workflow = await storage.getWorkflow({
+            workflowname: workflowName as string,
+            workflowId,
+            return: (data) => data as any
+        });
+
+        return workflow;
+    }
+
     private async executeWorkflow<Name extends keyof WorkflowsDict>(
         workflowName: Name,
         arg: WorkflowsDict[Name]['in'],
@@ -346,6 +366,13 @@ export class WorkflowSystem<
         entrypoint: "workflow" | "middleware" = "workflow"
     ): Promise<Unpromise<WorkflowsDict[Name]['out']>> {
         // Проверяем есть ли сохраненный воркфлоу
+
+        const existsWorkflow = await this.findWorkflowByID(workflowName as string, workflowId);
+
+        // maybe delete === undefined
+        if (existsWorkflow && "result" in existsWorkflow && existsWorkflow.result !== undefined) {
+            return (existsWorkflow.result);
+        }
 
         const state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict> = {
             additionalData: {},
@@ -480,8 +507,8 @@ export class WorkflowSystem<
             const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
             await this.executeMiddlewares(collector as any, event);
         }
-
         return state.output;
+
     }
 
     private async executeActivity<
@@ -581,7 +608,8 @@ export class WorkflowSystem<
 
                 };
                 const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
-                const result = await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+                const result = await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event)
+                    .catch(reject);
 
                 if (isResolved) return;
 
@@ -614,8 +642,8 @@ export class WorkflowSystem<
 
                 };
                 const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
-                await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
-
+                await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event)
+                    .catch(reject);
 
             }) : () => undefined;
 
@@ -646,7 +674,8 @@ export class WorkflowSystem<
 
                         };
                         const collector = MiddlewareEventCollector.from(event as any as MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>);
-                        await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
+                        await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event)
+                            .catch(reject);
                         reject({
                             activityName,
                             providerName,
@@ -694,8 +723,8 @@ export class WorkflowSystem<
                     }
                 };
                 const collector = MiddlewareEventCollector.from(event as any);
-                await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event);
-
+                await this.executeMiddlewares(collector as any as MiddlewareEventCollector<MiddlewareInput<ActivitiesProvidersDict, WorkflowsDict>, ActivitiesProvidersDict, WorkflowsDict, {}, false>, event)
+                    .catch(reject);
                 if (isResolved) return;
 
                 return resolve(state.output);
