@@ -370,9 +370,9 @@ export class WorkflowSystem<
         const existsWorkflow = await this.findWorkflowByID(workflowName as string, workflowId);
 
         // maybe delete === undefined
-        if (existsWorkflow && "result" in existsWorkflow && existsWorkflow.result !== undefined) {
-            return (existsWorkflow.result);
-        }
+        // if (existsWorkflow && "result" in existsWorkflow && existsWorkflow.result !== undefined) {
+        //     return (existsWorkflow.result);
+        // }
 
         const state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict> = {
             additionalData: {},
