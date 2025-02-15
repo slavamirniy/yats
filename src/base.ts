@@ -299,6 +299,8 @@ export class WorkflowSystem<
     public async getPromiseByWorkflowId<T extends keyof WorkflowsDict>(workflowName: T, workflowId: string): Promise<Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined> {
         let promise: Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined;
         await this.awaitersCache.access(val => {
+            if (!(workflowName in val))
+                val[workflowName as string] = {};
             promise = val[workflowName as string]![workflowId];
             return val;
         });

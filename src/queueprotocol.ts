@@ -12,7 +12,7 @@ export interface IQueueStorage {
         task: QueueTask
     ): MaybePromise<void>;
     popTask(): MaybePromise<QueueTask | undefined>;
-    completeTask(id: string, result: any): MaybePromise<void>;
+    completeTask(id: string, result: any, error?: any): MaybePromise<void>;
     getTaskResult(id: string): MaybePromise<any>;
 }
 
@@ -45,8 +45,12 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
             },
 
             completeTask: async (task: QueueTask) => {
-                const result = await provider.getActivityResult(task.name as keyof T, task.args);
-                await this.queueStorage.completeTask(task.id, result);
+                try {
+                    const result = await provider.getActivityResult(task.name as keyof T, task.args);
+                    await this.queueStorage.completeTask(task.id, result);
+                } catch (error) {
+                    await this.queueStorage.completeTask(task.id, undefined, error);
+                }
             },
 
             nextIteration: () => {
@@ -81,7 +85,7 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
 }
 
 export class QueueCacheStorage implements IQueueStorage {
-    private tasks: (QueueTask & { result?: any, state: 'queued' | 'running' | 'completed' })[] = [];
+    private tasks: (QueueTask & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' })[] = [];
 
     constructor(private timeout: number = 1000) { }
 
@@ -97,12 +101,13 @@ export class QueueCacheStorage implements IQueueStorage {
         return task;
     }
 
-    completeTask(id: string, result: any): MaybePromise<void> {
+    completeTask(id: string, result: any, error?: any): MaybePromise<void> {
         const task = this.tasks.find(task => task.id === id);
         if (!task) throw new Error(`Task with id ${id} not found`);
 
         task.state = 'completed';
         task.result = result;
+        task.error = error;
     }
 
     getTaskResult(id: string): MaybePromise<any> {
@@ -112,16 +117,23 @@ export class QueueCacheStorage implements IQueueStorage {
         }
 
         if (task.state !== 'completed') {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 const interval = setInterval(() => {
                     if (task.state === 'completed') {
                         clearInterval(interval);
-                        resolve(task.result);
+                        if (task.error) {
+                            reject(task.error);
+                        } else {
+                            resolve(task.result);
+                        }
                     }
                 }, this.timeout);
             });
         }
 
+        if (task.error) {
+            throw task.error;
+        }
         return task.result;
     }
 }
