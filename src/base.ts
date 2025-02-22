@@ -151,7 +151,7 @@ type MiddlewareInput<Activities extends Record<string, IActivitesProvider<any>>,
         (
             { order: "input"; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setOutput'>['Type'] } } |
             { order: "start"; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setOutput' | 'setInput'>['Type'] } } |
-            { order: "output"; opearion: { executor: ActivityExecutor<Activities>; output: Workflows[WorkflowName]['out']; }; commands: { return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setInput'>['Type'] } }
+            { order: "output"; operation: { output: Workflows[WorkflowName]['out']; }; commands: { executor: ActivityExecutor<Activities>; return: MiddlewareOutputCollector<Workflows[WorkflowName], MiddlewareOutput<Activities, Workflows>, 'setWorkflowAdditionalData' | 'setInput'>['Type'] } }
         )
     }[keyof Workflows]
     )
@@ -296,7 +296,7 @@ export class WorkflowSystem<
         return { workflow_id: workflowId, promise: awaiter };
     }
 
-    public async getPromiseByWorkflowId<T extends keyof WorkflowsDict>(workflowName: T, workflowId: string): Promise<{promise: Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined}> {
+    public async getPromiseByWorkflowId<T extends keyof WorkflowsDict>(workflowName: T, workflowId: string): Promise<{ promise: Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined }> {
         let promise: Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined;
         await this.awaitersCache.access(val => {
             if (!(workflowName in val))
