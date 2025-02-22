@@ -296,7 +296,7 @@ export class WorkflowSystem<
         return { workflow_id: workflowId, promise: awaiter };
     }
 
-    public async getPromiseByWorkflowId<T extends keyof WorkflowsDict>(workflowName: T, workflowId: string): Promise<Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined> {
+    public async getPromiseByWorkflowId<T extends keyof WorkflowsDict>(workflowName: T, workflowId: string): Promise<{promise: Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined}> {
         let promise: Promise<Unpromise<WorkflowsDict[T]['out']>> | undefined;
         await this.awaitersCache.access(val => {
             if (!(workflowName in val))
@@ -306,7 +306,7 @@ export class WorkflowSystem<
         });
 
         if (promise !== undefined) {
-            return promise;
+            return { promise };
         }
 
         const storage: IWorkflowStorage<WorkflowsDict> | undefined = await this.data.storageSelector({
@@ -325,7 +325,7 @@ export class WorkflowSystem<
             return: (data) => data as any
         });
 
-        if (workflow === undefined) return undefined;
+        if (workflow === undefined) return { promise: undefined };
 
         promise = this.executeWorkflow(workflowName, workflow.args, workflowId, 'workflow');
 
@@ -336,7 +336,7 @@ export class WorkflowSystem<
             return val;
         });
 
-        return promise;
+        return { promise };
     }
 
     private async findWorkflowByID(workflowName: string, workflowId: string) {
