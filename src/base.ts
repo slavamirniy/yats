@@ -144,7 +144,7 @@ type MiddlewareInput<Activities extends Record<string, IActivitesProvider<any>>,
             operation: {
                 input: Workflows[WorkflowName]['in'];
                 output?: Workflows[WorkflowName]['out'];
-                workflowAdditionalData: Workflows[WorkflowName]['additionalData']
+                additionalData: Workflows[WorkflowName]['additionalData']
             }
         }
         ) &
