@@ -409,7 +409,7 @@ export class WorkflowSystem<
                         counterValue = val[providerName]![activityName]!++;
                         return val;
                     })
-                    const id = `${providerName}.${activityName}.${counterValue}`;
+                    const id = `${workflowId}.${providerName}.${activityName}.${counterValue}`;
                     return await this.executeActivity(
                         providerName as keyof ActivitiesProvidersDict,
                         activityName as string,
@@ -810,7 +810,7 @@ export class WorkflowSystem<
     }
 
     private async getActivityFromStorage(providerName: keyof ActivitiesProvidersDict, activityName: string, activityId: string, args: any, workflowName: string, workflowId: string) {
-        if (!this.data.storageSelector) return null;
+        if (!this.data.storageSelector) return undefined;
         const storage = (this.data.storageSelector as any)({
             method: 'get',
             type: 'activity',
