@@ -762,7 +762,7 @@ export class WorkflowSystem<
     }
 
     private async getWorkflowFromStorage(workflowName: keyof WorkflowsDict, workflowId: string) {
-        if (!this.data.storageSelector) return null;
+        if (!this.data.storageSelector) return undefined;
         const storage = (this.data.storageSelector as any)({
             method: 'get',
             type: 'workflow',
