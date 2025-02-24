@@ -232,16 +232,16 @@ type StorageReturn<T> = T & { _brand: "return" };
 type StorageReturnFunc<T> = (data: T) => MaybePromise<StorageReturn<T>>;
 
 export interface IActivitiesStorage<ACTIVITIES extends Record<string, IActivitesProvider<ActivitiesDescription<any>>>, PROVIDER extends keyof ACTIVITIES> {
-    getActivity(data: { [ProviderName in PROVIDER]: { [ActivityName in keyof ACTIVITIES[ProviderName]['InferActivities']]: { providerName: ProviderName, activityName: ActivityName, args: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['in'], activityId: string, workflowName: string, workflowId: string, return: StorageReturnFunc<ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['out']> } }[keyof ACTIVITIES[ProviderName]['InferActivities']] }[PROVIDER]): MaybePromise<StorageReturn<ACTIVITIES[PROVIDER]['InferActivities'][keyof ACTIVITIES]['out']> | undefined>
+    getActivity(data: { [ProviderName in PROVIDER]: { [ActivityName in keyof ACTIVITIES[ProviderName]['InferActivities']]: { providerName: ProviderName, activityName: ActivityName, args: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['in'], activityId: string, workflowName: string, workflowId: string, return: StorageReturnFunc<ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['out']> } }[keyof ACTIVITIES[ProviderName]['InferActivities']] }[PROVIDER]): MaybePromise<StorageReturn<{ result: ACTIVITIES[PROVIDER]['InferActivities'][keyof ACTIVITIES]['out'] }> | undefined>
     setActivity(data: { [ProviderName in PROVIDER]: { [ActivityName in keyof ACTIVITIES[ProviderName]['InferActivities']]: { result: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['out'], args: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['in'], activityname: ActivityName, providername: ProviderName, activityId: string, workflowName: string, workflowId: string } }[keyof ACTIVITIES[ProviderName]['InferActivities']] }[PROVIDER]): MaybePromise<void>
-    getActivityAdditionalData(data: { [ProviderName in PROVIDER]: { [ActivityName in keyof ACTIVITIES[ProviderName]['InferActivities']]: { activityname: ActivityName, providername: ProviderName, args: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['in'], activityId: string, workflowName: string, workflowId: string, return: StorageReturnFunc<ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['additionalData']> } }[keyof ACTIVITIES[ProviderName]['InferActivities']] }[PROVIDER]): MaybePromise<StorageReturn<ACTIVITIES[PROVIDER]['InferActivities'][keyof ACTIVITIES]['additionalData']> | undefined>
+    getActivityAdditionalData(data: { [ProviderName in PROVIDER]: { [ActivityName in keyof ACTIVITIES[ProviderName]['InferActivities']]: { activityname: ActivityName, providername: ProviderName, args: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['in'], activityId: string, workflowName: string, workflowId: string, return: StorageReturnFunc<ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['additionalData']> } }[keyof ACTIVITIES[ProviderName]['InferActivities']] }[PROVIDER]): MaybePromise<StorageReturn<{ additionalData: ACTIVITIES[PROVIDER]['InferActivities'][keyof ACTIVITIES]['additionalData'] }> | undefined>
     setActivityAdditionalData(data: { [ProviderName in PROVIDER]: { [ActivityName in keyof ACTIVITIES[ProviderName]['InferActivities']]: { additionalData: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['additionalData'], activityname: ActivityName, providername: ProviderName, args: ACTIVITIES[ProviderName]['InferActivities'][ActivityName]['in'], activityId: string, workflowName: string, workflowId: string } }[keyof ACTIVITIES[ProviderName]['InferActivities']] }[PROVIDER]): MaybePromise<void>
 }
 
 export interface IWorkflowStorage<WorkflowsDict extends WorkflowsDescriptionWithAdditionalData<keyof any>> {
     getWorkflow(data: { [K in keyof WorkflowsDict]: { workflowname: K, workflowId: string, return: StorageReturnFunc<{ args: WorkflowsDict[K]['in'], result?: WorkflowsDict[K]['out'] }> } }[keyof WorkflowsDict]): MaybePromise<StorageReturn<{ args: WorkflowsDict[keyof WorkflowsDict]['in'], result?: WorkflowsDict[keyof WorkflowsDict]['out'] }> | undefined>
     setWorkflow(data: { [K in keyof WorkflowsDict]: { args: WorkflowsDict[K]['in'], result?: WorkflowsDict[K]['out'], workflowname: K, workflowId: string } }[keyof WorkflowsDict]): MaybePromise<void>
-    getWorkflowAdditionalData(data: { [K in keyof WorkflowsDict]: { workflowname: K, workflowId: string, return: StorageReturnFunc<WorkflowsDict[K]['additionalData']> } }[keyof WorkflowsDict]): MaybePromise<StorageReturn<WorkflowsDict[keyof WorkflowsDict]['additionalData']> | undefined>
+    getWorkflowAdditionalData(data: { [K in keyof WorkflowsDict]: { workflowname: K, workflowId: string, return: StorageReturnFunc<WorkflowsDict[K]['additionalData']> } }[keyof WorkflowsDict]): MaybePromise<StorageReturn<{ additionalData: WorkflowsDict[keyof WorkflowsDict]['additionalData'] }> | undefined>
     setWorkflowAdditionalData(data: { [K in keyof WorkflowsDict]: { additionalData: WorkflowsDict[K]['additionalData'], workflowname: K, workflowId: string } }[keyof WorkflowsDict]): MaybePromise<void>
 }
 
@@ -409,7 +409,7 @@ export class WorkflowSystem<
                         counterValue = val[providerName]![activityName]!++;
                         return val;
                     })
-                    const hashFromArgs = Math.abs(JSON.stringify(args).split('').reduce((a, b) => (((a << 5) - a) + b.charCodeAt(0))|0, 0)).toString(36);
+                    const hashFromArgs = Math.abs(JSON.stringify(args).split('').reduce((a, b) => (((a << 5) - a) + b.charCodeAt(0)) | 0, 0)).toString(36);
                     const id = `${workflowId}.${providerName}.${activityName}.${counterValue}.${hashFromArgs}`;
                     return await this.executeActivity(
                         providerName as keyof ActivitiesProvidersDict,
@@ -819,7 +819,7 @@ export class WorkflowSystem<
             activityname: activityName,
             set_storage: (s: keyof StoragesTypes) => this.getStorage(s)
         }) as IActivitiesStorage<ActivitiesProvidersDict, keyof ActivitiesProvidersDict>;
-        return await storage?.getActivity?.({
+        return (await storage?.getActivity?.({
             providerName,
             activityName,
             activityId,
@@ -827,7 +827,7 @@ export class WorkflowSystem<
             workflowName,
             workflowId,
             return: (data) => (data as StorageReturn<typeof data>)
-        });
+        }))?.result;
     }
 
     private async saveActivityToStorage(providerName: keyof ActivitiesProvidersDict, activityName: string, activityId: string, args: any, result: any, workflowName: string, workflowId: string) {

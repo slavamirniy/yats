@@ -32,7 +32,7 @@ export class MapStorage implements IWorkflowStorage<any>, IActivitiesStorage<any
     }
     getActivity(data: { providerName: any; activityName: string; args: any; activityId: string; return: (data: any) => any; }) {
         const key = this.getActivityKey(data.providerName, data.activityName, data.activityId, data.args);
-        return data.return(this.cache.get(key));
+        return data.return({ result: this.cache.get(key) });
     }
     setActivity(data: { result: any; args: any; activityname: string; providername: any; activityId: string; }): MaybePromise<void> {
         const key = this.getActivityKey(data.providername, data.activityname, data.activityId, data.args);
@@ -40,7 +40,7 @@ export class MapStorage implements IWorkflowStorage<any>, IActivitiesStorage<any
     }
     getActivityAdditionalData(data: { activityname: string; providername: any; args: any; activityId: string; return: (data: any) => any; }) {
         const key = this.getActivityKey(data.providername, data.activityname, data.activityId, data.args);
-        return data.return(this.cache.get(key));
+        return data.return({ additionalData: this.cache.get(key) });
     }
     setActivityAdditionalData(data: { additionalData: any; activityname: string; providername: any; args: any; activityId: string; }): MaybePromise<void> {
         const key = this.getActivityKey(data.providername, data.activityname, data.activityId, data.args);
