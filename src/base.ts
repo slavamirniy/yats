@@ -524,9 +524,9 @@ export class WorkflowSystem<
     >(
         providerName: Provider,
         activityName: ActivityName,
+        activityId: string,
         arg: any,
         workflowName: keyof WorkflowsDict,
-        activityId: string,
         workflowId: string,
         executor: ActivityExecutor<ActivitiesProvidersDict>,
         workflowState: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict>,
