@@ -409,7 +409,8 @@ export class WorkflowSystem<
                         counterValue = val[providerName]![activityName]!++;
                         return val;
                     })
-                    const id = `${workflowId}.${providerName}.${activityName}.${counterValue}`;
+                    const hashFromArgs = Math.abs(JSON.stringify(args).split('').reduce((a, b) => (((a << 5) - a) + b.charCodeAt(0))|0, 0)).toString(36);
+                    const id = `${workflowId}.${providerName}.${activityName}.${counterValue}.${hashFromArgs}`;
                     return await this.executeActivity(
                         providerName as keyof ActivitiesProvidersDict,
                         activityName as string,
