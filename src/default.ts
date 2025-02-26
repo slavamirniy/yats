@@ -97,12 +97,12 @@ export abstract class IProtocolActivitiesProvider<T extends Record<string, any>>
 
     abstract send<Name extends keyof T>(activityname: Name, arg: { [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["in"]): MaybePromise<{ [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["out"]>;
 
-    getActivityResult<Name extends keyof T>(activityname: Name, arg: { [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["in"]): MaybePromise<{ [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["out"]> {
+    async getActivityResult<Name extends keyof T>(activityname: Name, arg: { [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["in"]): Promise<{ [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["out"]> {
         if (this.isWorker) {
             if (!this.provider) throw new Error('Provider not set');
-            return this.provider.getActivityResult(activityname, arg);
+            return await this.provider.getActivityResult(activityname, arg);
         } else {
-            return this.send(activityname, arg);
+            return await this.send(activityname, arg);
         }
     }
 
