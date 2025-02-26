@@ -423,8 +423,8 @@ export class WorkflowSystem<
                         entrypoint
                     );
                 }
-                (executor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = (args: any) => execActivity(args, 'workflow');
-                (middlewareExecutor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = (args: any) => execActivity(args, 'middleware');
+                (executor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = async (args: any) => await execActivity(args, 'workflow');
+                (middlewareExecutor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = async (args: any) => await execActivity(args, 'middleware');
             }
         }
 
