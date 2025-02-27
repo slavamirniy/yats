@@ -399,6 +399,7 @@ export class WorkflowSystem<
 
                 const execActivity = async (args: any, entrypoint: "workflow" | "middleware" = "workflow") => {
                     let counterValue = 0;
+                    if (typeof args === 'undefined') args = {};
                     await counter.access(val => {
                         if (!(providerName in val)) {
                             val[providerName] = {};
