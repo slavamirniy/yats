@@ -85,7 +85,7 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
 }
 
 export class QueueCacheStorage implements IQueueStorage {
-    private tasks: (QueueTask & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' })[] = [];
+    protected tasks: (QueueTask & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' })[] = [];
 
     constructor(private timeout: number = 1000) { }
 
