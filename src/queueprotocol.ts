@@ -67,8 +67,8 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
         }
     }
 
-    async send<Name extends keyof T>(activityname: Name, arg: { [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["in"]): Promise<{ [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["out"]> {
-        const taskId = Math.random().toString(36).substring(7);
+    async send<Name extends keyof T>(activityname: Name, arg: { [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["in"], id?: string): Promise<{ [K in keyof T]: { in: T[K]["in"]; out: T[K]["out"]; additionalData: {}; }; }[Name]["out"]> {
+        const taskId = id ?? Math.random().toString(36).substring(7);
 
         await this.queueStorage.pushTask({
             name: activityname as string,
