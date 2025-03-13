@@ -119,7 +119,7 @@ export class ProtocolCollector<T extends Record<string, any>> {
         return new ProtocolCollector(provider);
     }
 
-    use<NEW_T extends T>(protocol: { setProvider: (provider: IActivitesProvider<T>) => IProtocolActivitiesProvider<NEW_T> }): ProtocolCollector<NEW_T> {
+    use<NEW_T extends Record<string, any>>(protocol: { setProvider: (provider: IActivitesProvider<T>) => IProtocolActivitiesProvider<NEW_T> }): ProtocolCollector<NEW_T> {
         this.provider = protocol.setProvider(this.provider) as any;
         return this as unknown as ProtocolCollector<NEW_T>;
     }
