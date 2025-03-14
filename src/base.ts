@@ -1038,10 +1038,10 @@ export type StorageSelectorFunction<Activities extends Record<string, any>, Work
 
 
 // # BASE CLASSES
-class MiddlewareUndefinedExitException extends Error {
-    constructor() {
-        super("Middleware exit because value is undefined");
-    }
+class MiddlewareUndefinedExitException implements Error {
+    name: string = "MiddlewareUndefinedExitException";
+    message: string = "Middleware exit because value is undefined";
+    stack?: string | undefined;
 }
 
 type MiddlewareEventCollectorFlags = {
