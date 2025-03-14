@@ -32,9 +32,6 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
     }
 
     async work(): Promise<void> {
-        const provider = this.provider;
-        if (!provider) throw new Error('Provider not set');
-
         this.isRunning = true;
 
         const cmd = {
@@ -45,6 +42,9 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
             },
 
             completeTask: async (task: QueueTask) => {
+                const provider = this.provider;
+                if (!provider) throw new Error('Provider not set');
+
                 try {
                     const result = await provider.getActivityResult(task.name as keyof T, task.args);
                     await this.queueStorage.completeTask(task.id, result);
