@@ -126,23 +126,36 @@ export class QueueCacheStorage implements IQueueStorage {
     }
 
     async getTaskResult(id: string): Promise<any> {
-        while (true) {
-            let task: QueueTask | undefined = undefined;
-            await this.tasks.access(val => {
-                task = val.find(t => t.id === id);
-                return val;
-            })
-
-            if (!task) throw new Error(`Task with id ${id} not found`);
-
-            if ((task as CachedTask).state === 'completed') {
-                if ((task as CachedTask).error) {
-                    throw (task as CachedTask).error;
+        return new Promise(async (resolve, reject) => {
+            const checkTask = async () => {
+                try {
+                    let task: CachedTask | undefined;
+                    await this.tasks.access(val => {
+                        task = val.find(t => t.id === id) as CachedTask;
+                        return val;
+                    });
+    
+                    if (!task) {
+                        reject(new Error(`Task with id ${id} not found`));
+                        return;
+                    }
+    
+                    if (task.state === 'completed') {
+                        if (task.error) {
+                            reject(task.error);
+                        } else {
+                            resolve(task.result);
+                        }
+                        return;
+                    }
+    
+                    setTimeout(checkTask, this.timeout);
+                } catch (error) {
+                    reject(error);
                 }
-                return (task as CachedTask).result;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, this.timeout));
-        }
+            };
+    
+            checkTask();
+        });
     }
 }
