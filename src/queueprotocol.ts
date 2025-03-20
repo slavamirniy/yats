@@ -91,16 +91,16 @@ export class QueueCacheStorage implements IQueueStorage {
 
     constructor(private timeout: number = 1000) { }
 
-    pushTask(task: QueueTask): Promise<void> {
-        return this.tasks.access(val => {
+    async pushTask(task: QueueTask): Promise<void> {
+        await this.tasks.access(val => {
             val.unshift({ ...task, state: 'queued' });
             return val;
         })
     }
 
-    popTask(): Promise<QueueTask | undefined> {
+    async popTask(): Promise<QueueTask | undefined> {
         let task: any = undefined;
-        this.tasks.access(val => {
+        await this.tasks.access(val => {
             task = val.find(t => t.state === 'queued');
             if (task) {
                 task.state = 'running';
