@@ -1,5 +1,5 @@
 import { IProtocolActivitiesProvider } from "./default.js";
-import { IActivitesProvider, MaybePromise } from "./base.js";
+import { IActivitesProvider, MaybePromise, QueuedAccessVariable } from "./base.js";
 
 export type QueueTask = {
     name: string,
@@ -26,7 +26,7 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
             takeTask: () => Promise<QueueTask | undefined>,
             completeTask: (task: QueueTask) => Promise<void>,
             nextIteration: () => void
-        }) => void
+        }) => Promise<void>
     ) {
         super();
     }
@@ -62,7 +62,7 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
             const waitPromise = new Promise<void>(resolve => {
                 cmd.nextIteration = resolve;
             })
-            this.queueManager(cmd);
+            await this.queueManager(cmd);
             await waitPromise;
         }
     }
@@ -84,56 +84,65 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
     }
 }
 
+type CachedTask = QueueTask & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' }
+
 export class QueueCacheStorage implements IQueueStorage {
-    protected tasks: (QueueTask & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' })[] = [];
+    protected tasks: QueuedAccessVariable<CachedTask[]> = new QueuedAccessVariable([] as any);
 
     constructor(private timeout: number = 1000) { }
 
-    pushTask(task: QueueTask): MaybePromise<void> {
-        this.tasks.unshift({ ...task, state: 'queued' });
+    pushTask(task: QueueTask): Promise<void> {
+        return this.tasks.access(val => {
+            val.unshift({ ...task, state: 'queued' });
+            return val;
+        })
     }
 
-    popTask(): MaybePromise<QueueTask | undefined> {
-        const task = this.tasks.find(t => t.state === 'queued');
-        if (!task) return undefined;
-
-        task.state = 'running';
+    popTask(): Promise<QueueTask | undefined> {
+        let task: any = undefined;
+        this.tasks.access(val => {
+            task = val.find(t => t.state === 'queued');
+            if (task) {
+                task.state = 'running';
+            }
+            return val;
+        })
         return task;
     }
 
-    completeTask(id: string, result: any, error?: any): MaybePromise<void> {
-        const task = this.tasks.find(task => task.id === id);
-        if (!task) throw new Error(`Task with id ${id} not found`);
+    async completeTask(id: string, result: any, error?: any): Promise<void> {
+        let task: any = undefined;
+        await this.tasks.access(val => {
+            task = val.find(t => t.id === id);
+            if (!task) return val;
 
-        task.state = 'completed';
-        task.result = result;
-        task.error = error;
+            task.state = 'completed';
+            task.result = result;
+            task.error = error;
+            return val;
+        })
+
+        if (!task) throw new Error(`Task with id ${id} not found`);
     }
 
-    getTaskResult(id: string): MaybePromise<any> {
-        const task = this.tasks.find(task => task.id === id);
-        if (!task) {
-            throw new Error(`Task with id ${id} not found`);
-        }
+    async getTaskResult(id: string): Promise<any> {
+        while (true) {
+            let task: QueueTask | undefined = undefined;
+            await this.tasks.access(val => {
+                task = val.find(t => t.id === id);
+                return val;
+            })
 
-        if (task.state !== 'completed') {
-            return new Promise((resolve, reject) => {
-                const interval = setInterval(() => {
-                    if (task.state === 'completed') {
-                        clearInterval(interval);
-                        if (task.error) {
-                            reject(task.error);
-                        } else {
-                            resolve(task.result);
-                        }
-                    }
-                }, this.timeout);
-            });
-        }
+            if (!task) throw new Error(`Task with id ${id} not found`);
 
-        if (task.error) {
-            throw task.error;
+            if ((task as CachedTask).state === 'completed') {
+                if ((task as CachedTask).error) {
+                    throw (task as CachedTask).error;
+                }
+                return (task as CachedTask).result;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, this.timeout));
         }
-        return task.result;
     }
 }
