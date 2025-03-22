@@ -266,6 +266,13 @@ type WorkflowsDictWithAdditionalData<T extends Record<string, WorkflowDescriptio
     [K in keyof T]: WorkflowWithAdditionalData<T[K]>
 };
 
+class TraceEndedError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'TraceEndedError';
+    }
+}
+
 export class WorkflowSystem<
     ActivitiesProvidersDict extends Record<string, any>,
     WorkflowsDict extends Record<string, any>,
@@ -422,6 +429,111 @@ export class WorkflowSystem<
         return { executor };
     }
 
+    private async generateExecutorsForTracing(workflowName: string, workflowId: string, state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict>) {
+
+        // Создаем executor для активностей
+        const executor = {} as {
+            [P in keyof ActivitiesProvidersDict]: {
+                [A in keyof ActivitiesProvidersDict[P]['InferActivities']]: (
+                    arg: ActivitiesProvidersDict[P]['InferActivities'][A]['in']
+                ) => PromiseIfNot<ActivitiesProvidersDict[P]['InferActivities'][A]['out']>
+            }
+        };
+
+        const middlewareExecutor = {} as {
+            [P in keyof ActivitiesProvidersDict]: {
+                [A in keyof ActivitiesProvidersDict[P]['InferActivities']]: (
+                    arg: ActivitiesProvidersDict[P]['InferActivities'][A]['in']
+                ) => PromiseIfNot<ActivitiesProvidersDict[P]['InferActivities'][A]['out']>
+            }
+        };
+
+        const counter: QueuedAccessVariable<{ [providerName: string]: { [activityName: string]: number } }> = new QueuedAccessVariable({});
+
+        const activitiesCallHistory: {
+            providerName: string;
+            activityName: string;
+            id: string;
+            args: any;
+            result: any;
+        }[] = [];
+
+        function getActivitesTrace() {
+            return activitiesCallHistory;
+        }
+
+        for (const [providerName, provider] of Object.entries(this.data.activitiesProviders)) {
+            executor[providerName as keyof ActivitiesProvidersDict] = {} as any;
+            middlewareExecutor[providerName as keyof ActivitiesProvidersDict] = {} as any;
+
+            const activities = provider.getActivitiesNames();
+            for (const activityName of activities) {
+
+                const execActivity = async (args: any, entrypoint: "workflow" | "middleware" = "workflow") => {
+                    let counterValue = 0;
+                    if (typeof args === 'undefined') args = {};
+                    await counter.access(val => {
+                        if (!(providerName in val)) {
+                            val[providerName] = {};
+                        }
+                        if (!(activityName in val[providerName]!)) {
+                            val[providerName]![activityName] = 0;
+                        }
+                        counterValue = val[providerName]![activityName]!++;
+                        return val;
+                    })
+                    const hashFromArgs = Math.abs(JSON.stringify(args).split('').reduce((a, b) => (((a << 5) - a) + b.charCodeAt(0)) | 0, 0)).toString(36);
+                    const id = `${workflowId}.${providerName}.${activityName}.${counterValue}.${hashFromArgs}`;
+                    const storaged = await this.getActivityFromStorage(providerName as keyof ActivitiesProvidersDict, activityName as string, id, args, workflowName as string, workflowId);
+                    if (storaged) {
+                        activitiesCallHistory.push({
+                            activityName,
+                            providerName,
+                            id,
+                            args,
+                            result: storaged
+                        });
+                    } else {
+                        throw new TraceEndedError(`Activity ${activityName} from provider ${providerName} not found in storage`);
+                    }
+                    return storaged;
+                }
+                (executor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = async (args: any) => await execActivity(args, 'workflow');
+                (middlewareExecutor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = async (args: any) => await execActivity(args, 'middleware');
+            }
+        }
+
+        return { executor, getActivitesTrace };
+    }
+
+    public async traceWorkflow(workflowName: string, workflowId: string) {
+
+        const savedWorkflow = await this.getWorkflowFromStorage(workflowName, workflowId);
+
+        if (!savedWorkflow) {
+            throw new Error(`Workflow ${workflowName} with id ${workflowId} not found`);
+        }
+
+        const state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict> = {
+            additionalData: {},
+            input: savedWorkflow.args,
+            output: undefined
+        }
+
+        const { executor, getActivitesTrace } = await this.generateExecutorsForTracing(workflowName as string, workflowId, state as any);
+
+        try {
+            await this.data.workflows[workflowName](executor, state.input)
+        } catch (error) {
+            if (error instanceof TraceEndedError) {
+                return getActivitesTrace();
+            }
+            throw error;
+        }
+
+        return getActivitesTrace();
+    }
+
     private async executeWorkflow<Name extends keyof WorkflowsDict>(
         workflowName: Name,
         arg: WorkflowsDict[Name]['in'],
@@ -525,7 +637,6 @@ export class WorkflowSystem<
             await this.executeMiddlewares(collector as any, event);
         }
         return state.output;
-
     }
 
     private async executeActivity<
