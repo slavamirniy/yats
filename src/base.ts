@@ -470,33 +470,35 @@ export class WorkflowSystem<
             for (const activityName of activities) {
 
                 const execActivity = async (args: any, entrypoint: "workflow" | "middleware" = "workflow") => {
-                    let counterValue = 0;
-                    if (typeof args === 'undefined') args = {};
-                    await counter.access(val => {
-                        if (!(providerName in val)) {
-                            val[providerName] = {};
+                    return new Promise(async (resolve, reject) => {
+                        let counterValue = 0;
+                        if (typeof args === 'undefined') args = {};
+                        await counter.access(val => {
+                            if (!(providerName in val)) {
+                                val[providerName] = {};
+                            }
+                            if (!(activityName in val[providerName]!)) {
+                                val[providerName]![activityName] = 0;
+                            }
+                            counterValue = val[providerName]![activityName]!++;
+                            return val;
+                        })
+                        const hashFromArgs = Math.abs(JSON.stringify(args).split('').reduce((a, b) => (((a << 5) - a) + b.charCodeAt(0)) | 0, 0)).toString(36);
+                        const id = `${workflowId}.${providerName}.${activityName}.${counterValue}.${hashFromArgs}`;
+                        const storaged = await this.getActivityFromStorage(providerName as keyof ActivitiesProvidersDict, activityName as string, id, args, workflowName as string, workflowId);
+                        if (storaged) {
+                            activitiesCallHistory.push({
+                                activityName,
+                                providerName,
+                                id,
+                                args,
+                                result: storaged
+                            });
+                        } else {
+                            // throw new TraceEndedError(`Activity ${activityName} from provider ${providerName} not found in storage`);
                         }
-                        if (!(activityName in val[providerName]!)) {
-                            val[providerName]![activityName] = 0;
-                        }
-                        counterValue = val[providerName]![activityName]!++;
-                        return val;
+                        return resolve(storaged);
                     })
-                    const hashFromArgs = Math.abs(JSON.stringify(args).split('').reduce((a, b) => (((a << 5) - a) + b.charCodeAt(0)) | 0, 0)).toString(36);
-                    const id = `${workflowId}.${providerName}.${activityName}.${counterValue}.${hashFromArgs}`;
-                    const storaged = await this.getActivityFromStorage(providerName as keyof ActivitiesProvidersDict, activityName as string, id, args, workflowName as string, workflowId);
-                    if (storaged) {
-                        activitiesCallHistory.push({
-                            activityName,
-                            providerName,
-                            id,
-                            args,
-                            result: storaged
-                        });
-                    } else {
-                        throw new TraceEndedError(`Activity ${activityName} from provider ${providerName} not found in storage`);
-                    }
-                    return storaged;
                 }
                 (executor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = async (args: any) => await execActivity(args, 'workflow');
                 (middlewareExecutor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = async (args: any) => await execActivity(args, 'middleware');
