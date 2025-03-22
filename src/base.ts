@@ -429,7 +429,7 @@ export class WorkflowSystem<
         return { executor };
     }
 
-    private async generateExecutorsForTracing(workflowName: string, workflowId: string, state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict>) {
+    private async generateExecutorsForTracing(workflowName: string, workflowId: string, stopWaiting: (value: any) => void) {
 
         // Создаем executor для активностей
         const executor = {} as {
@@ -495,7 +495,7 @@ export class WorkflowSystem<
                                 result: storaged
                             });
                         } else {
-                            // throw new TraceEndedError(`Activity ${activityName} from provider ${providerName} not found in storage`);
+                            return stopWaiting(`Activity ${activityName} from provider ${providerName} not found in storage`);
                         }
                         return resolve(storaged);
                     })
@@ -522,16 +522,17 @@ export class WorkflowSystem<
             output: undefined
         }
 
-        const { executor, getActivitesTrace } = await this.generateExecutorsForTracing(workflowName as string, workflowId, state as any);
+        let stopWaiting: ((value: any) => void);
+        const promise = new Promise<any>((resolve) => {
+            stopWaiting = resolve;
+        });
 
-        try {
-            await this.data.workflows[workflowName](executor, state.input)
-        } catch (error) {
-            if (error instanceof TraceEndedError) {
-                return getActivitesTrace();
-            }
-            throw error;
-        }
+        const { executor, getActivitesTrace } = await this.generateExecutorsForTracing(workflowName as string, workflowId, stopWaiting!);
+
+        await Promise.race([
+            this.data.workflows[workflowName](executor, state.input),
+            promise
+        ])
 
         return getActivitesTrace();
     }
