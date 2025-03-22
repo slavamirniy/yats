@@ -359,17 +359,7 @@ export class WorkflowSystem<
         return workflow;
     }
 
-    private async executeWorkflow<Name extends keyof WorkflowsDict>(
-        workflowName: Name,
-        arg: WorkflowsDict[Name]['in'],
-        workflowId: string,
-        entrypoint: "workflow" | "middleware" = "workflow"
-    ): Promise<Unpromise<WorkflowsDict[Name]['out']>> {
-        const state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict> = {
-            additionalData: {},
-            input: arg,
-            output: undefined
-        }
+    private async generateExecutors(workflowName: string, workflowId: string, state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict>) {
 
         // Создаем executor для активностей
         const executor = {} as {
@@ -428,6 +418,24 @@ export class WorkflowSystem<
                 (middlewareExecutor[providerName as keyof ActivitiesProvidersDict] as any)[activityName] = async (args: any) => await execActivity(args, 'middleware');
             }
         }
+
+        return { executor };
+    }
+
+    private async executeWorkflow<Name extends keyof WorkflowsDict>(
+        workflowName: Name,
+        arg: WorkflowsDict[Name]['in'],
+        workflowId: string,
+        entrypoint: "workflow" | "middleware" = "workflow"
+    ): Promise<Unpromise<WorkflowsDict[Name]['out']>> {
+        const state: MiddlewareOutput<ActivitiesProvidersDict, WorkflowsDict> = {
+            additionalData: {},
+            input: arg,
+            output: undefined
+        }
+
+        // Создаем executor для активностей
+        const { executor } = await this.generateExecutors(workflowName as string, workflowId, state as any)
 
         const savedWorkflow = await this.getWorkflowFromStorage(workflowName, workflowId);
 
