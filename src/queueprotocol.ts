@@ -110,8 +110,8 @@ export class QueueCacheStorage<T extends QueueTask = QueueTask> implements IQueu
         return task;
     }
 
-    async completeTask(id: string, result: any, error?: any): Promise<void> {
-        let task: any = undefined;
+    async completeTask(id: string, result: any, error?: any, additionalData?: Partial<Omit<T, keyof QueueTask>>): Promise<void> {
+        let task: CachedTask<T> | undefined = undefined;
         await this.tasks.access(val => {
             task = val.find(t => t.id === id);
             if (!task) return val;
@@ -119,6 +119,17 @@ export class QueueCacheStorage<T extends QueueTask = QueueTask> implements IQueu
             task.state = 'completed';
             task.result = result;
             task.error = error;
+            
+            // Добавляем дополнительные параметры из T, исключая поля QueueTask
+            if (additionalData) {
+                Object.entries(additionalData).forEach(([key, value]) => {
+                    if (!['id', 'name', 'args', 'state', 'result', 'error'].includes(key)) {
+                        // Используем утверждение типа для безопасного присваивания
+                        (task as any)[key] = value;
+                    }
+                });
+            }
+            
             return val;
         })
 
