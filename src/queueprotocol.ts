@@ -86,7 +86,7 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
 
 type CachedTask = QueueTask & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' }
 
-export class QueueCacheStorage implements IQueueStorage<QueueTask> {
+export class QueueCacheStorage<T extends QueueTask = QueueTask> implements IQueueStorage<T> {
     protected tasks: QueuedAccessVariable<CachedTask[]> = new QueuedAccessVariable([] as any);
 
     constructor(private timeout: number = 1000) { }
@@ -98,7 +98,7 @@ export class QueueCacheStorage implements IQueueStorage<QueueTask> {
         })
     }
 
-    async popTask(): Promise<QueueTask | undefined> {
+    async popTask(): Promise<T | undefined> {
         let task: any = undefined;
         await this.tasks.access(val => {
             task = val.find(t => t.state === 'queued');
