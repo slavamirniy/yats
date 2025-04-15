@@ -7,11 +7,11 @@ export type QueueTask = {
     id: string
 }
 
-export interface IQueueStorage {
+export interface IQueueStorage<Task extends QueueTask> {
     pushTask(
-        task: QueueTask
+        task: Task
     ): MaybePromise<void>;
-    popTask(): MaybePromise<QueueTask | undefined>;
+    popTask(): MaybePromise<Task | undefined>;
     completeTask(id: string, result: any, error?: any): MaybePromise<void>;
     getTaskResult(id: string): MaybePromise<any>;
 }
@@ -21,7 +21,7 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
     private isRunning: boolean = false;
 
     constructor(
-        protected queueStorage: IQueueStorage,
+        protected queueStorage: IQueueStorage<QueueTask>,
         private queueManager: (cmd: {
             takeTask: () => Promise<QueueTask | undefined>,
             completeTask: (task: QueueTask) => Promise<void>,
@@ -86,7 +86,7 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
 
 type CachedTask = QueueTask & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' }
 
-export class QueueCacheStorage implements IQueueStorage {
+export class QueueCacheStorage implements IQueueStorage<QueueTask> {
     protected tasks: QueuedAccessVariable<CachedTask[]> = new QueuedAccessVariable([] as any);
 
     constructor(private timeout: number = 1000) { }
