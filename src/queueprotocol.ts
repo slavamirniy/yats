@@ -84,14 +84,14 @@ export class QueueProtocol<T extends Record<string, any>> extends IProtocolActiv
     }
 }
 
-type CachedTask = QueueTask & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' }
+type CachedTask<T extends QueueTask = QueueTask> = T & { result?: any, error?: any, state: 'queued' | 'running' | 'completed' }
 
 export class QueueCacheStorage<T extends QueueTask = QueueTask> implements IQueueStorage<T> {
-    protected tasks: QueuedAccessVariable<CachedTask[]> = new QueuedAccessVariable([] as any);
+    protected tasks: QueuedAccessVariable<CachedTask<T>[]> = new QueuedAccessVariable([] as any);
 
     constructor(private timeout: number = 1000) { }
 
-    async pushTask(task: QueueTask): Promise<void> {
+    async pushTask(task: T): Promise<void> {
         await this.tasks.access(val => {
             val.unshift({ ...task, state: 'queued' });
             return val;
@@ -129,9 +129,9 @@ export class QueueCacheStorage<T extends QueueTask = QueueTask> implements IQueu
         return new Promise(async (resolve, reject) => {
             const checkTask = async () => {
                 try {
-                    let task: CachedTask | undefined;
+                    let task: CachedTask<T> | undefined;
                     await this.tasks.access(val => {
-                        task = val.find(t => t.id === id) as CachedTask;
+                        task = val.find(t => t.id === id) as CachedTask<T>;
                         return val;
                     });
     
